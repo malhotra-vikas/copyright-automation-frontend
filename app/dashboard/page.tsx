@@ -15,7 +15,6 @@ export default async function Dashboard() {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="mb-8 text-3xl font-bold">Your Copyrighting Tasks (Ready for AI)</h1>
       <TaskList tasks={tasks} />
     </div>
   )

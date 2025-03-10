@@ -7,7 +7,7 @@ import LogoutButton from "@/components/logout-button"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "ClickUp Task Manager",
+  title: "Ready for AI",
   description: "View your ClickUp tasks that are ready for AI",
 }
 
@@ -26,7 +26,7 @@ export default function RootLayout({
           {isLoggedIn && (
             <header className="border-b">
               <div className="container mx-auto py-4 px-4 flex justify-between items-center">
-                <h1 className="font-semibold">ClickUp Task Manager</h1>
+                <h1 className="font-semibold">Your Copyrighting Tasks (Ready for AI)</h1>
                 <LogoutButton />
               </div>
             </header>

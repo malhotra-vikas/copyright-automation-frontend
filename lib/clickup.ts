@@ -5,8 +5,17 @@ export interface ClickUpTask {
     status: {
         status: string
     }
+
     date_created: string
     url: string
+    // Custom fields (Array of Objects)
+    custom_fields: {
+        id: string
+        name: string
+        type: string
+        value: string | number | boolean | null
+    }[]
+
 }
 
 export async function getClickUpTasks(token: string): Promise<ClickUpTask[]> {
@@ -75,7 +84,7 @@ export async function getClickUpTasks(token: string): Promise<ClickUpTask[]> {
                     const folderId = folder.id
 
                     console.log("folderId is ", folderId)
-    
+
                     const listsResponse = await fetch(`https://api.clickup.com/api/v2/folder/${folderId}/list`, {
                         headers: {
                             Authorization: token,
@@ -94,7 +103,7 @@ export async function getClickUpTasks(token: string): Promise<ClickUpTask[]> {
                         const listId = list.id
 
                         console.log("listId is ", listId)
-    
+
                         const tasksResponse = await fetch(
                             `https://api.clickup.com/api/v2/list/${listId}/task?statuses[]=READY FOR AI`,
                             {

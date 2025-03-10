@@ -18,7 +18,7 @@ export default function LandingPage() {
         <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
           <Card className="w-full max-w-md">
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold">ClickUp Task Manager</CardTitle>
+              <CardTitle className="text-2xl font-bold">Your Copyrighting Tasks (Ready for AI)</CardTitle>
               <CardDescription>Connect with ClickUp to view your "READY FOR AI" tasks</CardDescription>
             </CardHeader>
             <CardContent>
