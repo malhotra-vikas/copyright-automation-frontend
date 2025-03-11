@@ -118,7 +118,7 @@ export async function getClickUpTasks(token: string): Promise<ClickUpTask[]> {
                         const tasksData = await tasksResponse.json()
                         const tasks = tasksData.tasks
 
-                        console.log("tasks are ", tasks)
+                        //console.log("tasks are ", tasks)
 
                         if (tasks && tasks.length > 0) {
                             allTasks = [...allTasks, ...tasks]

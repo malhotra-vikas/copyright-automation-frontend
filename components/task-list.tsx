@@ -9,13 +9,15 @@ import { Button } from "@/components/ui/button"
 import confetti from "canvas-confetti"
 import type { ClickUpTask } from "@/lib/clickup"
 import { useRouter } from "next/navigation"
+import { toast } from "react-toastify"
+
 
 interface TaskListProps {
     tasks: ClickUpTask[]
 }
 
-export default function TaskList({ tasks }: TaskListProps) {
-    const router = useRouter() 
+export default async function TaskList({ tasks }: TaskListProps) {
+    const router = useRouter()
 
     const [searchQuery, setSearchQuery] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
@@ -36,40 +38,45 @@ export default function TaskList({ tasks }: TaskListProps) {
     const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
     const displayedTasks = filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-    // **Trigger AI Workflow for selected tasks**
     const triggerAIWorkflow = async (taskList: ClickUpTask[]) => {
         if (taskList.length === 0) return
 
-        // 1️⃣ Mark tasks as "Processing"
+        console.log("📡 Sending tasks to server for AI processing:", taskList.map(t => t.name))
+
         const taskUpdates = Object.fromEntries(taskList.map(task => [task.id, true]))
         setProcessingTasks(prev => ({ ...prev, ...taskUpdates }))
-        setCompletedTasks(prev => ({ ...prev, ...taskUpdates })) // Reset previous completions
 
-        console.log("📡 Running AI workflow for task(s):", taskList.map(t => t.name))
+        try {
+            const response = await fetch("/api/ai-workflow", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tasks: taskList }),
+            })
 
-        // Simulate an API call delay
-        await new Promise(res => setTimeout(res, 2000)) // Simulate AI Processing (Replace with real API call)
+            const { results } = await response.json()
 
-        // 2️⃣ 🎉 Trigger confetti when AI processing completes
-        confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-        })
+            const completedUpdates = results.reduce((acc: Record<string, string>, result: any) => {
+                acc[result.taskId] = result.summary || "No summary available"
+                return acc
+            }, {})
 
-        // 3️⃣ Mark tasks as "AI Completed" and CLEAR processing state
-        const completedUpdates = Object.fromEntries(taskList.map(task => [task.id, true]))
-        setCompletedTasks(prev => ({ ...prev, ...completedUpdates }))
+            setCompletedTasks(prev => ({ ...prev, ...completedUpdates }))
+            toast.success("🎉 AI workflow completed!")
+        } catch (error) {
+            console.error("❌ Error triggering AI workflow:", error)
+            toast.error("❌ AI processing failed")
+        } finally {
+            setProcessingTasks(prev => {
+                const updated = { ...prev }
+                taskList.forEach(task => delete updated[task.id])
+                return updated
+            })
 
-        // ❗ CLEAR processing state to ensure cards update properly
-        setProcessingTasks(prev => {
-            const updated = { ...prev }
-            taskList.forEach(task => delete updated[task.id]) // Remove processing flag
-            return updated
-        })
-
-        alert(`🎉 AI Workflow completed for ${taskList.length > 1 ? "selected tasks" : "this task"}`)
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+        }
     }
+
+
 
     return (
         <div>

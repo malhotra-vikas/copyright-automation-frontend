@@ -13,7 +13,7 @@ const dummyEmails = [
     "👀 Special Offer: **20% discount for a limited time!**\n\nClick here to claim your exclusive deal."
 ]
 
-export default function AIReview() {
+export default function AIReview() {    
     const router = useRouter()
     const params = useParams()
     const taskId = params?.taskid // Ensure `taskId` exists
