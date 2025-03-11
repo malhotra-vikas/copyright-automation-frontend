@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Search, ChevronLeft, ChevronRight, ExternalLink, Zap, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import confetti from "canvas-confetti"
 import type { ClickUpTask } from "@/lib/clickup"
 
 interface TaskListProps {
@@ -17,8 +18,9 @@ export default function TaskList({ tasks }: TaskListProps) {
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 6
 
-    // Track AI processing states
+    // Track AI processing and completion states
     const [processingTasks, setProcessingTasks] = useState<Record<string, boolean>>({})
+    const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({})
 
     // **Filter tasks based on search query**
     const filteredTasks = tasks.filter(
@@ -35,20 +37,35 @@ export default function TaskList({ tasks }: TaskListProps) {
     const triggerAIWorkflow = async (taskList: ClickUpTask[]) => {
         if (taskList.length === 0) return
 
-        // Update state to mark tasks as "Processing"
+        // 1️⃣ Mark tasks as "Processing"
         const taskUpdates = Object.fromEntries(taskList.map(task => [task.id, true]))
         setProcessingTasks(prev => ({ ...prev, ...taskUpdates }))
+        setCompletedTasks(prev => ({ ...prev, ...taskUpdates })) // Reset previous completions
 
         console.log("📡 Running AI workflow for task(s):", taskList.map(t => t.name))
 
         // Simulate an API call delay
         await new Promise(res => setTimeout(res, 2000)) // Simulate AI Processing (Replace with real API call)
 
-        // Mark tasks as completed
-        const completedUpdates = Object.fromEntries(taskList.map(task => [task.id, false]))
-        setProcessingTasks(prev => ({ ...prev, ...completedUpdates }))
+        // 2️⃣ 🎉 Trigger confetti when AI processing completes
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+        })
 
-        alert(`AI Workflow completed for ${taskList.length > 1 ? "selected tasks" : "this task"}`)
+        // 3️⃣ Mark tasks as "AI Completed" and CLEAR processing state
+        const completedUpdates = Object.fromEntries(taskList.map(task => [task.id, true]))
+        setCompletedTasks(prev => ({ ...prev, ...completedUpdates }))
+
+        // ❗ CLEAR processing state to ensure cards update properly
+        setProcessingTasks(prev => {
+            const updated = { ...prev }
+            taskList.forEach(task => delete updated[task.id]) // Remove processing flag
+            return updated
+        })
+
+        alert(`🎉 AI Workflow completed for ${taskList.length > 1 ? "selected tasks" : "this task"}`)
     }
 
     return (
@@ -96,12 +113,18 @@ export default function TaskList({ tasks }: TaskListProps) {
                     {/* Task Grid */}
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {displayedTasks.map((task) => (
-                            <Card key={task.id}>
+                            <Card key={task.id} className={`${completedTasks[task.id] ? "border-green-500 shadow-lg scale-105 transition-transform" : ""}`}>
                                 <CardHeader className="pb-2">
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="text-lg font-medium line-clamp-2">{task.name}</CardTitle>
-                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                            {processingTasks[task.id] ? "Processing..." : task.status.status.toUpperCase()}
+                                        <Badge
+                                            variant="outline"
+                                            className={`border ${processingTasks[task.id] ? "bg-yellow-100 text-yellow-700 border-yellow-300"
+                                                : completedTasks[task.id] ? "bg-green-100 text-green-700 border-green-300"
+                                                    : "bg-green-50 text-green-700 border-green-200"
+                                                }`}
+                                        >
+                                            {processingTasks[task.id] ? "Processing..." : completedTasks[task.id] ? "AI Completed" : task.status.status.toUpperCase()}
                                         </Badge>
                                     </div>
                                 </CardHeader>
