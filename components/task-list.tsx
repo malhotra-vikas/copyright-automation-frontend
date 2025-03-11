@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import confetti from "canvas-confetti"
 import type { ClickUpTask } from "@/lib/clickup"
+import router from "next/router"
 
 interface TaskListProps {
     tasks: ClickUpTask[]
@@ -113,7 +114,9 @@ export default function TaskList({ tasks }: TaskListProps) {
                     {/* Task Grid */}
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {displayedTasks.map((task) => (
-                            <Card key={task.id} className={`${completedTasks[task.id] ? "border-green-500 shadow-lg scale-105 transition-transform" : ""}`}>
+                            <Card key={task.id}
+                                onClick={() => completedTasks[task.id] && router.push(`/ai-review/${task.id}`)}
+                                className={`${completedTasks[task.id] ? "border-green-500 shadow-lg scale-105 transition-transform" : ""}`}>
                                 <CardHeader className="pb-2">
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="text-lg font-medium line-clamp-2">{task.name}</CardTitle>
