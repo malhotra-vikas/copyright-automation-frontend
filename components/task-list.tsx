@@ -8,13 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import confetti from "canvas-confetti"
 import type { ClickUpTask } from "@/lib/clickup"
-import router from "next/router"
+import { useRouter } from "next/navigation"
 
 interface TaskListProps {
     tasks: ClickUpTask[]
 }
 
 export default function TaskList({ tasks }: TaskListProps) {
+    const router = useRouter() 
+
     const [searchQuery, setSearchQuery] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 6

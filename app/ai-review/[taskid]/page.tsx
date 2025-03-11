@@ -15,25 +15,29 @@ const dummyEmails = [
 
 export default function AIReview() {
     const router = useRouter()
-    const { taskId } = useParams()
+    const params = useParams()
+    const taskId = params?.taskid // Ensure `taskId` exists
     const [emails, setEmails] = useState<string[]>([])
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        console.log("✅ useEffect triggered. taskId:", taskId) // Debugging
+
         if (taskId) {
-            setEmails(dummyEmails) // Replace with API call to fetch AI-generated emails
+            console.log("🟢 Setting AI-generated emails...")
+            setEmails(dummyEmails) // Replace with actual API call
+            setLoading(false)
+        } else {
+            console.warn("⚠️ taskId is missing. Params received:", params)
         }
     }, [taskId])
 
-    const rerunAIForSection = async (emailIndex: number, newPrompt: string) => {
-        console.log(`📡 Re-running AI for Task ${taskId}, Email Section ${emailIndex} with prompt:`, newPrompt)
-        await new Promise(res => setTimeout(res, 1500)) // Simulated AI Reprocessing
-
-        setEmails(prevEmails =>
-            prevEmails.map((email, index) =>
-                index === emailIndex ? `✨ AI Refined: ${newPrompt} 🚀` : email
-            )
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen text-lg text-gray-500">
+                Loading AI-generated emails...
+            </div>
         )
-        alert(`✅ AI has refined the selected section!`)
     }
 
     return (
@@ -48,26 +52,25 @@ export default function AIReview() {
                 </CardHeader>
                 <CardContent>
                     <ul className="space-y-4">
-                        {emails.map((email, index) => (
-                            <li key={index} className="bg-gray-100 p-3 rounded">
-                                <span
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    onBlur={(e) => rerunAIForSection(index, e.currentTarget.textContent || email)}
-                                    className="outline-none cursor-text border-b-2 border-transparent hover:border-blue-500 transition-all"
-                                >
-                                    {email}
-                                </span>
-                                <Button
-                                    size="xs"
-                                    variant="ghost"
-                                    onClick={() => rerunAIForSection(index, email)}
-                                    className="ml-2"
-                                >
-                                    <RefreshCw className="h-4 w-4" /> Re-run AI
-                                </Button>
-                            </li>
-                        ))}
+                        {emails.length === 0 ? (
+                            <p className="text-gray-500">No emails generated yet.</p>
+                        ) : (
+                            emails.map((email, index) => (
+                                <li key={index} className="bg-gray-100 p-3 rounded">
+                                    <span
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => console.log(`Edited Email: ${e.currentTarget.textContent}`)}
+                                        className="outline-none cursor-text border-b-2 border-transparent hover:border-blue-500 transition-all"
+                                    >
+                                        {email}
+                                    </span>
+                                    <Button size="xs" variant="ghost" className="ml-2">
+                                        <RefreshCw className="h-4 w-4" /> Re-run AI
+                                    </Button>
+                                </li>
+                            ))
+                        )}
                     </ul>
                 </CardContent>
             </Card>
