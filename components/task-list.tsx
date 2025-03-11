@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Search, ChevronLeft, ChevronRight, ExternalLink, Zap } from "lucide-react"
+import { CheckCircle, Search, ChevronLeft, ChevronRight, ExternalLink, Zap, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import type { ClickUpTask } from "@/lib/clickup"
@@ -12,26 +12,13 @@ interface TaskListProps {
     tasks: ClickUpTask[]
 }
 
-// Placeholder function for AI workflow
-const triggerAIWorkflow = async (task?: ClickUpTask[]) => {
-    console.log("🔄 Triggering AI Workflow...");
-
-    if (task) {
-        console.log("📡 Running AI workflow for task(s):", task.map(t => t.name));
-    } else {
-        console.log("📡 Running AI workflow for ALL filtered tasks...");
-    }
-
-    // Here you can replace this with an actual API call to your AI workflow
-    // Example: await fetch('/api/ai-workflow', { method: 'POST', body: JSON.stringify({ tasks }) });
-
-    alert(`AI Workflow triggered ${task ? "for selected task(s)" : "for all filtered tasks"}`);
-}
-
 export default function TaskList({ tasks }: TaskListProps) {
     const [searchQuery, setSearchQuery] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 6
+
+    // Track AI processing states
+    const [processingTasks, setProcessingTasks] = useState<Record<string, boolean>>({})
 
     // **Filter tasks based on search query**
     const filteredTasks = tasks.filter(
@@ -43,6 +30,26 @@ export default function TaskList({ tasks }: TaskListProps) {
     // **Pagination Logic**
     const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
     const displayedTasks = filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+    // **Trigger AI Workflow for selected tasks**
+    const triggerAIWorkflow = async (taskList: ClickUpTask[]) => {
+        if (taskList.length === 0) return
+
+        // Update state to mark tasks as "Processing"
+        const taskUpdates = Object.fromEntries(taskList.map(task => [task.id, true]))
+        setProcessingTasks(prev => ({ ...prev, ...taskUpdates }))
+
+        console.log("📡 Running AI workflow for task(s):", taskList.map(t => t.name))
+
+        // Simulate an API call delay
+        await new Promise(res => setTimeout(res, 2000)) // Simulate AI Processing (Replace with real API call)
+
+        // Mark tasks as completed
+        const completedUpdates = Object.fromEntries(taskList.map(task => [task.id, false]))
+        setProcessingTasks(prev => ({ ...prev, ...completedUpdates }))
+
+        alert(`AI Workflow completed for ${taskList.length > 1 ? "selected tasks" : "this task"}`)
+    }
 
     return (
         <div>
@@ -63,9 +70,19 @@ export default function TaskList({ tasks }: TaskListProps) {
                     onClick={() => triggerAIWorkflow(filteredTasks)}
                     variant="secondary"
                     className="flex items-center gap-2"
+                    disabled={Object.values(processingTasks).some(status => status)} // Disable if AI is running
                 >
-                    <Zap className="h-5 w-5 text-yellow-500" />
-                    Run AI on All
+                    {Object.values(processingTasks).some(status => status) ? (
+                        <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Processing...
+                        </>
+                    ) : (
+                        <>
+                            <Zap className="h-5 w-5 text-yellow-500" />
+                            Run AI on All
+                        </>
+                    )}
                 </Button>
             </div>
 
@@ -84,7 +101,7 @@ export default function TaskList({ tasks }: TaskListProps) {
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="text-lg font-medium line-clamp-2">{task.name}</CardTitle>
                                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                            {task.status.status.toUpperCase()}
+                                            {processingTasks[task.id] ? "Processing..." : task.status.status.toUpperCase()}
                                         </Badge>
                                     </div>
                                 </CardHeader>
@@ -137,9 +154,19 @@ export default function TaskList({ tasks }: TaskListProps) {
                                             onClick={() => triggerAIWorkflow([task])}
                                             variant="outline"
                                             className="flex items-center gap-2"
+                                            disabled={processingTasks[task.id]} // Disable if processing
                                         >
-                                            <Zap className="h-4 w-4 text-yellow-500" />
-                                            Run AI
+                                            {processingTasks[task.id] ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    Processing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Zap className="h-4 w-4 text-yellow-500" />
+                                                    Run AI
+                                                </>
+                                            )}
                                         </Button>
                                     </div>
                                 </CardContent>
