@@ -80,32 +80,6 @@ export default async function TaskList({ tasks }: TaskListProps) {
         return getCustomFieldValue(task, ["client-website", "website"]);
     };
 
-    const readLeadsFromGoogleSheet = async (googleSheetId: string) => {
-        if (!googleSheetId) return
-        try {
-            const response = await fetch("/api/google-sheet", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ googleSheetId }),
-            });
-
-            const { data } = await response.json();
-
-            console.log("Google Sheet data is ", data)
-        } catch (error) {
-            console.error("❌ Error fetching Google Sheet data:", error);
-            alert("Failed to fetch data. Ensure the sheet is public.");
-        }
-    }
-
-    const saveLeadsToAirtable = async (taskList: ClickUpTask[]) => {
-        if (taskList.length === 0) return
-
-        console.log("📡 Sending tasks to server for AirTable processing:", taskList.map(t => t.name))
-
-
-    }
-
     const triggerAIWorkflow = async (taskList: ClickUpTask[]) => {
         if (taskList.length === 0) return
 
@@ -165,17 +139,51 @@ export default async function TaskList({ tasks }: TaskListProps) {
 
                 console.log("✅ Successfully stored data in Airtable:", airtableResult.storedRecords);
 
-
-                // ✅ Step 3: Trigger AI Workflow
-                const response = await fetch("/api/ai-workflow", {
+                // ✅ Step 3: Trigger AI Workflow for each Airtable record. 
+                // For each wibsite form the AI Built Pitch-Match
+                const pitchMatchResponse = await fetch("/api/ai-workflow", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ tasks: [task] }),
+                    body: JSON.stringify({
+                        airtableRecords: airtableResult.storedRecords,
+                        aiTaskType: "Pitch-Match",
+                        testDrive: "Yes"
+                    }),
                 })
 
-                const { results } = await response.json()
+                // ✅ Handle possible empty response
+                if (!pitchMatchResponse.ok) {
+                    throw new Error(`Server Error: ${pitchMatchResponse.statusText}`);
+                }
+                const data = await pitchMatchResponse.json();
 
-                const completedUpdates = results.reduce((acc: Record<string, string>, result: any) => {
+                // ✅ Check if the response contains expected data
+                if (!data || !data.results || !Array.isArray(data.results)) {
+                    throw new Error("Invalid response format from server");
+                }
+                console.log("✅ AI Workflow Results:", data.results);
+
+                // ✅ Step 4: Update the relevent Air Table Record with the AI Generated Pitch
+
+                const recordsToUpdate = data.results.map(record => ({
+                    id: record.recordId,  // Airtable Record ID
+                    fields: {
+                        "pitch-match": record.summary || "No summary available", // Ensure a fallback value
+                        "status": "processed" // Optional: update the status to indicate AI processing is complete
+                    }
+                }));
+                
+                const airtableUpdatedResponse = await fetch("/api/airtable", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ airtableRecords: recordsToUpdate }),
+                });
+                
+                const updateResult = await airtableUpdatedResponse.json();
+                console.log("✅ Successfully updated Airtable records:", updateResult);
+
+                
+                const completedUpdates = data.reduce((acc: Record<string, string>, result: any) => {
                     acc[result.taskId] = result.summary || "No summary available"
                     return acc
                 }, {})

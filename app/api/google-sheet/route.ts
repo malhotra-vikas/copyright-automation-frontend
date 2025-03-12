@@ -53,14 +53,14 @@ export async function POST(req: Request) {
 
         // ✅ Extract headers from the FIRST ROW (instead of empty `cols.label`)
         const headers = jsonResponse.table.rows[0].c.map(cell => cell?.v || "");
-        console.log("headers are read as ", headers)
+        //console.log("headers are read as ", headers)
 
         // ✅ Convert remaining rows into structured objects
         const formattedData = jsonResponse.table.rows.slice(1).map(row =>
             Object.fromEntries(row.c.map((cell, index) => [headers[index], cell?.v || ""]))
         );
 
-        console.log("formattedData are read as ", formattedData)
+        //console.log("formattedData are read as ", formattedData)
 
         
         return NextResponse.json({ data: formattedData }, { status: 200 });

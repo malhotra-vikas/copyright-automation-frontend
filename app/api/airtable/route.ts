@@ -6,6 +6,55 @@ const AIRTABLE_TABLE_NAME = "Client-Leads"; // Change based on your Airtable tab
 const AIRTABLE_DATA_COUNT = Number(process.env.AIRTABLE_DATA_WRITE_COUNT) || -1; // Default to 100
 const MAX_AIRTABLE_BATCH_SIZE = 10; // Airtable allows only 10 records per request
 
+// ✅ PATCH method to update Airtable records
+export async function PATCH(req: Request) {
+    try {
+        const body = await req.json();
+        const recordsToUpdate = body.airtableRecords;
+
+        if (!Array.isArray(recordsToUpdate) || recordsToUpdate.length === 0) {
+            return NextResponse.json({ error: "Invalid records for update" }, { status: 400 });
+        }
+
+        console.log(`📡 Updating ${recordsToUpdate.length} records in Airtable`);
+
+        // ✅ Split into batches of 10
+        const batchPromises = [];
+        for (let i = 0; i < recordsToUpdate.length; i += MAX_AIRTABLE_BATCH_SIZE) {
+            const batch = recordsToUpdate.slice(i, i + MAX_AIRTABLE_BATCH_SIZE);
+            console.log(`📡 Sending batch of ${batch.length} updates to Airtable...`);
+
+            batchPromises.push(
+                fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`, {
+                    method: "PATCH",
+                    headers: {
+                        Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ records: batch }),
+                })
+                    .then(res => res.json())
+                    .then(resData => {
+                        if (resData.error) {
+                            throw new Error(`Airtable Update Error: ${JSON.stringify(resData)}`);
+                        }
+                        return resData.records;
+                    })
+            );
+        }
+
+        // ✅ Wait for all batches to complete
+        const updatedRecords = (await Promise.all(batchPromises)).flat();
+        console.log(`🎉 Successfully updated ${updatedRecords.length} records in Airtable`);
+
+        return NextResponse.json({ success: true, updatedRecords }, { status: 200 });
+
+    } catch (error) {
+        console.error("❌ Airtable Update API Error:", error);
+        return NextResponse.json({ error: "Failed to update records in Airtable" }, { status: 500 });
+    }
+}
+
 export async function POST(req: Request) {
     try {
         let body = await req.json();
@@ -48,7 +97,7 @@ export async function POST(req: Request) {
 
         // ✅ Prepare Data for Airtable API
         const records = data.map(record => {
-            console.log("🔍 Processing Record:", record);
+            //console.log("🔍 Processing Record:", record);
             return {
                 fields: {
                     "full name": record["full name"] || "Missing Name",
@@ -88,7 +137,7 @@ export async function POST(req: Request) {
                         if (resData.error) {
                             throw new Error(`Airtable API Error: ${JSON.stringify(resData)}`);
                         }
-                        console.log("✅ Successfully stored batch:", JSON.stringify(resData, null, 2));
+                        //console.log("✅ Successfully stored batch:", JSON.stringify(resData, null, 2));
                         return resData.records;
                     })
             );
