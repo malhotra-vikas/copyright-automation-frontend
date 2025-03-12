@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Search, ChevronLeft, ChevronRight, ExternalLink, Zap, Loader2 } from "lucide-react"
@@ -15,17 +15,33 @@ import { toast } from "react-toastify"
 interface TaskListProps {
     tasks: ClickUpTask[]
 }
+export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[] }) {
+    const [tasks, setTasks] = useState<ClickUpTask[]>(initialTasks);
 
-export default async function TaskList({ tasks }: TaskListProps) {
     const router = useRouter()
+
+    const [loading, setLoading] = useState(true);
 
     const [searchQuery, setSearchQuery] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
-    const itemsPerPage = 6
+    const itemsPerPage = Number(process.env.NEXT_PUBLIC_CLICKUP_TASKS_PER_PAGE) || 6;
 
     // Track AI processing and completion states
     const [processingTasks, setProcessingTasks] = useState<Record<string, boolean>>({})
     const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({})
+
+    useEffect(() => {
+        async function fetchTasks() {
+            try {
+                const res = await fetch("/api/clickup"); // Fetch from API Route
+                const data = await res.json();
+                setTasks(data);
+            } catch (error) {
+                console.error("Error fetching tasks:", error);
+            }
+        }
+        fetchTasks();
+    }, []);
 
     // **Filter tasks based on search query**
     const filteredTasks = tasks.filter(

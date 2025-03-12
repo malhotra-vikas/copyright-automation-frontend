@@ -15,7 +15,7 @@ export default async function Dashboard() {
 
   return (
     <div className="container mx-auto py-8">
-      <TaskList tasks={tasks} />
+      <TaskList initialTasks={tasks} /> {/* ✅ Pass initial tasks */}
     </div>
   )
 }
