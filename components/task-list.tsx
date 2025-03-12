@@ -38,35 +38,47 @@ export default async function TaskList({ tasks }: TaskListProps) {
     const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
     const displayedTasks = filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-    // **Helper: Extract Website from Task**
-    const getClientWebsiteFromTask = async (task: any): Promise<string> => {
+    // **Helper: Print and Log All Custom Fields**
+    const logAllCustomFields = (task: any) => {
+        console.log(`📝 Task: ${task.name} (ID: ${task.id}) - Available Custom Fields:`)
+        task.custom_fields.forEach((field: any) => {
+            console.log(`   - ${field.name}: ${field.value || "N/A"}`)
+        });
+    };
 
-        const websiteField = task.custom_fields.find((field: any) =>
-            field.name.toLowerCase() === "client-website"
-        )
-        console.log("Website found as ", websiteField)
-        return websiteField?.value || null
-    }
+    // **Helper: Extract Custom Fields**
+    const getCustomFieldValue = (task: any, fieldNames: string[]): string | null => {
+        const field = task.custom_fields.find((field: any) =>
+            fieldNames.includes(field.name.toLowerCase())
+        );
+        return field?.value || null;
+    };
 
-    // **Helper: Extract Leads Sheet from Task**
+    // **Modified Extraction Functions**
+    const getClientFromTask = async (task: any): Promise<string> => {
+        logAllCustomFields(task); // Debugging: Log all fields
+        return getCustomFieldValue(task, ["client", "client name", "client-name"]);
+    };
+
+    const getClientSlackFromTask = async (task: any): Promise<string> => {
+        return getCustomFieldValue(task, ["slack", "client slack"]);
+    };
+
+    const getClientOnboardingDocFromTask = async (task: any): Promise<string> => {
+        return getCustomFieldValue(task, ["onboarding document", "client onboarding doc"]);
+    };
+
     const getClientLeadsGoogleSheetFromTask = async (task: any): Promise<string> => {
+        return getCustomFieldValue(task, ["client-leads-list", "final approved list"]);
+    };
 
-        const googleSheetField = task.custom_fields.find((field: any) =>
-            field.name.toLowerCase() === "client-leads-list"
-        )
-        console.log("googleSheetField found as ", googleSheetField)
-        return googleSheetField?.value || null
-    }
-
-    // **Helper: Extract Leads Sheet from Task**
     const getClientGoogleDriveFromTask = async (task: any): Promise<string> => {
+        return getCustomFieldValue(task, ["client-google-drive", "google drive link"]);
+    };
 
-        const googleDriveField = task.custom_fields.find((field: any) =>
-            field.name.toLowerCase() === "client-google-drive"
-        )
-        console.log("googleDriveField found as ", googleDriveField)
-        return googleDriveField?.value || null
-    }
+    const getClientWebsiteFromTask = async (task: any): Promise<string> => {
+        return getCustomFieldValue(task, ["client-website", "website"]);
+    };
 
     const readLeadsFromGoogleSheet = async (googleSheetId: string) => {
         if (!googleSheetId) return
@@ -109,6 +121,9 @@ export default async function TaskList({ tasks }: TaskListProps) {
                 const clientGoogleDriveLink = await getClientGoogleDriveFromTask(task)
                 const clientWebsiteLink = await getClientWebsiteFromTask(task)
                 const clientLeadsGoogleSheetLink = await getClientLeadsGoogleSheetFromTask(task)
+                const clientName = await getClientFromTask(task)
+                const clientSlack = await getClientSlackFromTask(task)
+                const clientOnboardingDoc = await getClientOnboardingDocFromTask(task)
 
                 console.log(clientGoogleDriveLink)
                 console.log(clientWebsiteLink)
@@ -128,25 +143,28 @@ export default async function TaskList({ tasks }: TaskListProps) {
                     console.error("❌ Error: `leads` is not an array. Fixing format...");
                     leads = Object.values(leads); // Convert object to array if needed
                 }
-                
+
                 console.log("✅ Google Sheet Data Read as :", leads);
 
+                const body = { data: leads, client: clientName, slack: clientSlack, onboardindDocument: clientOnboardingDoc }
+
                 // ✅ Step 2: Sending data to Airtable
-                console.log("📡 Sending data to Airtable...");
+                console.log("📡 Sending data to Airtable...", body);
+
                 const airtableResponse = await fetch(`/api/airtable`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ data: leads })
+                    body: JSON.stringify(body)
                 });
-        
+
                 const airtableResult = await airtableResponse.json();
-        
+
                 if (!airtableResponse.ok) {
                     throw new Error(airtableResult.error || "Failed to store data in Airtable");
                 }
-        
+
                 console.log("✅ Successfully stored data in Airtable:", airtableResult.storedRecords);
-        
+
 
                 // ✅ Step 3: Trigger AI Workflow
                 const response = await fetch("/api/ai-workflow", {

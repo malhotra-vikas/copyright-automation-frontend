@@ -11,7 +11,10 @@ export async function POST(req: Request) {
         let body = await req.json();
         let data = body.data;
 
-        let clientId = "X"
+        let client = body.client
+        let clientSlack = body.clientSlack
+        let clientOnboardingDoc = body.onboardindDocument
+
 
         console.log("📡 Data Type:", typeof data);
         console.log("📡 Is Array?:", Array.isArray(data));
@@ -22,6 +25,10 @@ export async function POST(req: Request) {
         console.log("📡 AIRTABLE_BASE_ID:", AIRTABLE_BASE_ID);
         console.log("📡 AIRTABLE_TABLE_NAME:", AIRTABLE_TABLE_NAME);
         console.log("📡 AIRTABLE_DATA_COUNT:", AIRTABLE_DATA_COUNT);
+
+        console.log("📡 client:", client);
+        console.log("📡 clientSlack:", clientSlack);
+        console.log("📡 clientOnboardingDoc:", clientOnboardingDoc);
 
         // ✅ Ensure `data` is an array
         if (!Array.isArray(data)) {
@@ -51,7 +58,9 @@ export async function POST(req: Request) {
                     "Title": record["Title"] || "No Title",
                     "Website": record["Website"] || "http://unknown.com",
                     "status": "new",
-                    "client id": clientId
+                    "client id": client,
+                    "client slack": clientSlack,
+                    "client onboarding doc": clientOnboardingDoc
                 }
             };
         });
