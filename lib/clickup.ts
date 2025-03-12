@@ -18,6 +18,26 @@ export interface ClickUpTask {
 
 }
 
+export async function updateClickUpTaskStatus(taskId: string, newStatus: string, clickupToken: string) {
+    const url = `https://api.clickup.com/api/v2/task/${taskId}`;
+
+    const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+            Authorization: clickupToken,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: newStatus }),
+    });
+
+    if (!response.ok) {
+        console.error(`❌ Failed to update ClickUp task ${taskId} to ${newStatus}`);
+        throw new Error(`ClickUp API Error: ${response.statusText}`);
+    }
+
+    console.log(`✅ ClickUp task ${taskId} updated to ${newStatus}`);
+}
+
 export async function getClickUpTasks(token: string): Promise<ClickUpTask[]> {
     try {
         // First, get the user's teams
@@ -98,14 +118,14 @@ export async function getClickUpTasks(token: string): Promise<ClickUpTask[]> {
 
                     if (!lists || lists.length === 0) continue
 
-                    // For each list, get all tasks
+                    // For each list, get all tasks with status "READY FOR AI" and "AI PROCESSING"
                     for (const list of lists) {
                         const listId = list.id
 
                         console.log("listId is ", listId)
 
                         const tasksResponse = await fetch(
-                            `https://api.clickup.com/api/v2/list/${listId}/task?statuses[]=READY FOR AI`,
+                            `https://api.clickup.com/api/v2/list/${listId}/task?statuses[]=READY FOR AI&statuses[]=AI PROCESSING`,
                             {
                                 headers: {
                                     Authorization: token,

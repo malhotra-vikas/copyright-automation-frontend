@@ -108,6 +108,13 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
             for (const task of taskList) {
                 console.log(`📡 Processing Task: ${task.name} (ID: ${task.id})`);
 
+                // ✅ Step 0: Set Click Up task status to AI PROCESSING
+                await fetch("/api/clickup", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ taskId: task.id, status: "AI PROCESSING" }),
+                });
+
                 const clientGoogleDriveLink = await getClientGoogleDriveFromTask(task)
                 const clientWebsiteLink = await getClientWebsiteFromTask(task)
                 const clientLeadsGoogleSheetLink = await getClientLeadsGoogleSheetFromTask(task)

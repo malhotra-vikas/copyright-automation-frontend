@@ -68,7 +68,7 @@ const fetchWebsiteSummary = async (websiteUrl: string): Promise<string> => {
 async function processPitchMatchAI(airtableRecord: any): Promise<string> {
     const recordData = airtableRecord.fields;
 
-    console.log("AI Processing airtable Record - ", recordData)
+    //console.log("AI Processing airtable Record - ", recordData)
     const pitchSite = recordData["Website"]
 
     const prompt = `Analyze the ${pitchSite} and draft a pitch of no more than 45 words. The pitch should read natural as if a human has written it. 
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
                 limitedRecords.map(async (record) => {
                     try {
                         const summary = await processPitchMatchAI(record);
-                        console.log("Airtable Record processed is ", record)
+                        //console.log("Airtable Record processed is ", record)
                         return { recordId: record.id, name: record.fields["full name"], summary };
                     } catch (error) {
                         console.error(`❌ AI Error for Task ID ${record.id}:`, error);
