@@ -38,6 +38,62 @@ export default async function TaskList({ tasks }: TaskListProps) {
     const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
     const displayedTasks = filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
+    // **Helper: Extract Website from Task**
+    const getClientWebsiteFromTask = async (task: any): Promise<string> => {
+
+        const websiteField = task.custom_fields.find((field: any) =>
+            field.name.toLowerCase() === "client-website"
+        )
+        console.log("Website found as ", websiteField)
+        return websiteField?.value || null
+    }
+
+    // **Helper: Extract Leads Sheet from Task**
+    const getClientLeadsGoogleSheetFromTask = async (task: any): Promise<string> => {
+
+        const googleSheetField = task.custom_fields.find((field: any) =>
+            field.name.toLowerCase() === "client-leads-list"
+        )
+        console.log("googleSheetField found as ", googleSheetField)
+        return googleSheetField?.value || null
+    }
+
+    // **Helper: Extract Leads Sheet from Task**
+    const getClientGoogleDriveFromTask = async (task: any): Promise<string> => {
+
+        const googleDriveField = task.custom_fields.find((field: any) =>
+            field.name.toLowerCase() === "client-google-drive"
+        )
+        console.log("googleDriveField found as ", googleDriveField)
+        return googleDriveField?.value || null
+    }
+
+    const readLeadsFromGoogleSheet = async (googleSheetId: string) => {
+        if (!googleSheetId) return
+        try {
+            const response = await fetch("/api/google-sheet", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ googleSheetId }),
+            });
+
+            const { data } = await response.json();
+
+            console.log("Google Sheet data is ", data)
+        } catch (error) {
+            console.error("❌ Error fetching Google Sheet data:", error);
+            alert("Failed to fetch data. Ensure the sheet is public.");
+        }
+    }
+
+    const saveLeadsToAirtable = async (taskList: ClickUpTask[]) => {
+        if (taskList.length === 0) return
+
+        console.log("📡 Sending tasks to server for AirTable processing:", taskList.map(t => t.name))
+
+
+    }
+
     const triggerAIWorkflow = async (taskList: ClickUpTask[]) => {
         if (taskList.length === 0) return
 
@@ -47,21 +103,71 @@ export default async function TaskList({ tasks }: TaskListProps) {
         setProcessingTasks(prev => ({ ...prev, ...taskUpdates }))
 
         try {
-            const response = await fetch("/api/ai-workflow", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tasks: taskList }),
-            })
+            for (const task of taskList) {
+                console.log(`📡 Processing Task: ${task.name} (ID: ${task.id})`);
 
-            const { results } = await response.json()
+                const clientGoogleDriveLink = await getClientGoogleDriveFromTask(task)
+                const clientWebsiteLink = await getClientWebsiteFromTask(task)
+                const clientLeadsGoogleSheetLink = await getClientLeadsGoogleSheetFromTask(task)
 
-            const completedUpdates = results.reduce((acc: Record<string, string>, result: any) => {
-                acc[result.taskId] = result.summary || "No summary available"
-                return acc
-            }, {})
+                console.log(clientGoogleDriveLink)
+                console.log(clientWebsiteLink)
+                console.log(clientLeadsGoogleSheetLink)
 
-            setCompletedTasks(prev => ({ ...prev, ...completedUpdates }))
-            toast.success("🎉 AI workflow completed!")
+                // ✅ Step 1: Store Google Sheet Data in Airtable
+                const leadsResponse = await fetch("/api/google-sheet", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sheetUrl: clientLeadsGoogleSheetLink }),
+                });
+
+                let leads = await leadsResponse.json();
+                if (!leadsResponse.ok) throw new Error(leadsResponse.error || "Failed to read the Leads Google Sheet");
+
+                if (!Array.isArray(leads)) {
+                    console.error("❌ Error: `leads` is not an array. Fixing format...");
+                    leads = Object.values(leads); // Convert object to array if needed
+                }
+                
+                console.log("✅ Google Sheet Data Read as :", leads);
+
+                // ✅ Step 2: Sending data to Airtable
+                console.log("📡 Sending data to Airtable...");
+                const airtableResponse = await fetch(`/api/airtable`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ data: leads })
+                });
+        
+                const airtableResult = await airtableResponse.json();
+        
+                if (!airtableResponse.ok) {
+                    throw new Error(airtableResult.error || "Failed to store data in Airtable");
+                }
+        
+                console.log("✅ Successfully stored data in Airtable:", airtableResult.storedRecords);
+        
+
+                // ✅ Step 3: Trigger AI Workflow
+                const response = await fetch("/api/ai-workflow", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tasks: [task] }),
+                })
+
+                const { results } = await response.json()
+
+                const completedUpdates = results.reduce((acc: Record<string, string>, result: any) => {
+                    acc[result.taskId] = result.summary || "No summary available"
+                    return acc
+                }, {})
+
+                setCompletedTasks(prev => ({ ...prev, ...completedUpdates }))
+                toast.success("🎉 AI workflow completed!")
+
+
+            }
+
         } catch (error) {
             console.error("❌ Error triggering AI workflow:", error)
             toast.error("❌ AI processing failed")
@@ -75,8 +181,6 @@ export default async function TaskList({ tasks }: TaskListProps) {
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
         }
     }
-
-
 
     return (
         <div>
