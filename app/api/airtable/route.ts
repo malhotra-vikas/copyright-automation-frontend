@@ -117,34 +117,42 @@ export async function POST(req: Request) {
         console.log(`✅ Prepared ${records.length} records for Airtable`);
 
 
-        // ✅ Split into batches of 10
-        const batchPromises = [];
-        for (let i = 0; i < records.length; i += MAX_AIRTABLE_BATCH_SIZE) {
-            const batch = records.slice(i, i + MAX_AIRTABLE_BATCH_SIZE);
-            console.log(`📡 Sending batch of ${batch.length} records to Airtable...`);
-
-            batchPromises.push(
-                fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`, {
+        // ✅ Function to send batches of 10 records at a time
+        const sendBatch = async (batch: any[]) => {
+            try {
+                const response = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`, {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${AIRTABLE_API_KEY}`,
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({ records: batch })
-                })
-                    .then(res => res.json())
-                    .then(resData => {
-                        if (resData.error) {
-                            throw new Error(`Airtable API Error: ${JSON.stringify(resData)}`);
-                        }
-                        //console.log("✅ Successfully stored batch:", JSON.stringify(resData, null, 2));
-                        return resData.records;
-                    })
-            );
+                    body: JSON.stringify({ records: batch }),
+                });
+
+                const resData = await response.json();
+                if (resData.error) {
+                    throw new Error(`Airtable API Error: ${JSON.stringify(resData)}`);
+                }
+
+                console.log(`✅ Successfully stored ${batch.length} records`);
+                return resData.records;
+            } catch (error) {
+                console.error("❌ Airtable Batch Error:", error);
+                return [];
+            }
+        };
+
+        // ✅ Process all records in batches
+        const storedRecords = [];
+        for (let i = 0; i < records.length; i += MAX_AIRTABLE_BATCH_SIZE) {
+            const batch = records.slice(i, i + MAX_AIRTABLE_BATCH_SIZE);
+            console.log(`📡 Sending batch ${i / MAX_AIRTABLE_BATCH_SIZE + 1} of ${Math.ceil(records.length / MAX_AIRTABLE_BATCH_SIZE)}...`);
+            
+            // Wait for the batch to complete before moving to the next one
+            const batchResult = await sendBatch(batch);
+            storedRecords.push(...batchResult);
         }
 
-        // ✅ Wait for all batches to complete
-        const storedRecords = (await Promise.all(batchPromises)).flat();
         console.log(`🎉 Successfully stored ${storedRecords.length} records in Airtable`);
 
         return NextResponse.json({ success: true, storedRecords }, { status: 200 });
