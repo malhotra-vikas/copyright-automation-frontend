@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, ExternalLink, CheckCircle, FileText } from "lucide-react";
 
 interface AirtableRecord {
     id: string;
@@ -23,18 +23,17 @@ interface AirtableRecord {
         "pitch-match": string;
         "pitch-product": string;
         "pitch-cta": string;
+        "client-google-drive": string;
     };
 }
-
-const ITEMS_PER_PAGE = 5;
 
 export default function AIReview() {
     const router = useRouter();
     const params = useParams();
-    const taskId = params?.taskid; // Ensure `taskId` exists
+    const taskId = params?.taskid;
     const [emails, setEmails] = useState<AirtableRecord[]>([]);
     const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
         if (!taskId) return;
@@ -80,69 +79,132 @@ export default function AIReview() {
         );
     }
 
-    // Pagination logic
-    const totalPages = Math.ceil(emails.length / ITEMS_PER_PAGE);
-    const paginatedEmails = emails.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    // Get the current email record
+    const record = emails[currentIndex];
+
+    function approveAndSend(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
+        throw new Error("Function not implemented.");
+    }
+
+    function reviewManually(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
+        throw new Error("Function not implemented.");
+    }
+
+    function reRunAI(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
+        throw new Error("Function not implemented.");
+    }
 
     return (
-        <div className="max-w-3xl mx-auto py-10">
-            <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-                <ArrowLeft className="h-5 w-5" /> Back to Tasks
-            </Button>
+        <div className="max-w-6xl mx-auto py-10 h-screen flex flex-col">
+            <div>
+                <Button variant="outline" onClick={() => router.back()} className="mb-4">
+                    <ArrowLeft className="h-5 w-5" /> Back to Tasks
+                </Button>
+            </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>AI-Generated Outreach Emails</CardTitle>
-                    <p className="text-sm text-muted-foreground">Highlighted text is AI-generated</p>
-                </CardHeader>
-                <CardContent>
-                    <ul className="space-y-6">
-                        {paginatedEmails.map((record) => (
-                            <li key={record.id} className="bg-gray-100 p-4 rounded-lg shadow">
-                                <p>
-                                    <strong>Hey {record.fields["First Name"]},</strong>
-                                </p>
-                                <p className="bg-green-100 px-2 py-1 inline-block rounded text-green-900">
-                                    {record.fields["pitch-match"] || "No pitch-match available"}
-                                </p>
-                                <p className="mt-2">
-                                    This intrigued me, and I am now doing something and the other.
-                                </p>
-                                <p className="mt-4">Best,</p>
-                                <p>Vikas</p>
+            {/* 📧 Two-column layout with full height */}
+            <div className="flex flex-grow gap-6">
+                {/* 📧 Email Preview Section (Larger - 65%) */}
+                <Card className="flex-1 min-h-full">
+                    <CardHeader>
+                        <CardTitle>AI-Generated Outreach Email</CardTitle>
+                        <p className="text-sm text-muted-foreground">Highlighted text is AI-generated</p>
+                    </CardHeader>
+                    <CardContent className="flex flex-col justify-between h-full">
+                        <div className="flex-grow">
+                            <p><strong>Hey {record.fields["First Name"]},</strong></p>
+                            <p className="bg-green-100 px-2 py-1 inline-block rounded text-green-900">
+                                {record.fields["pitch-match"] || "No pitch-match available"}
+                            </p>
+                            <p className="mt-2">
+                                This intrigued me, so i researched your company ({record.fields["Company name"]}) a little more and came across your profile.
+                            </p>
+                            <p className="mt-2">
+                                Given you are the {record.fields["Title"]} of the company, i figured it would make sense to reach out.
+                            </p>
+                            <p className="mt-2">
+                                {record.fields["pitch-product"] || "No pitch-product available"}
+                            </p>
+                            <p className="mt-2">
+                                {record.fields["pitch-cta"] || "No pitch-cta available"}
+                            </p>
 
-                                <div className="flex items-center justify-between mt-4">
-                                    <p className="text-xs text-gray-500">Generated for {record.fields["Company name"]}</p>
-                                    <Button size="sm" variant="ghost" className="flex items-center gap-1">
-                                        <RefreshCw className="h-4 w-4" /> Re-run AI
-                                    </Button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+                            <p className="mt-4">Best,</p>
+                            <p>TBD</p>
+                        </div>
+                    </CardContent>
+                </Card>
 
-                    {/* Pagination Controls */}
-                    <div className="flex justify-center items-center mt-6 space-x-2">
-                        <Button
-                            variant="outline"
-                            disabled={currentPage === 1}
-                            onClick={() => setCurrentPage((prev) => prev - 1)}
-                        >
-                            Previous
-                        </Button>
-                        <span className="text-sm text-muted-foreground">
-                            Page {currentPage} of {totalPages}
-                        </span>
-                        <Button
-                            variant="outline"
-                            disabled={currentPage === totalPages}
-                            onClick={() => setCurrentPage((prev) => prev + 1)}
-                        >
-                            Next
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                {/* 📜 Key Artifacts Section (Smaller - 35%) */}
+                <Card className="w-1/3 min-h-full flex flex-col">
+                    <CardHeader>
+                        <CardTitle>Key Artifacts</CardTitle>
+                        <p className="text-sm text-muted-foreground">Client details & important links</p>
+                    </CardHeader>
+                    <CardContent className="flex-grow space-y-4">
+                        <div>
+                            <p className="text-sm font-semibold">Client:</p>
+                            <p className="text-muted-foreground">{record.fields["client id"] || "N/A"}</p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm font-semibold">Website:</p>
+                            {record.fields["Website"] ? (
+                                <a href={record.fields["Website"]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
+                                    {record.fields["Website"]} <ExternalLink className="h-4 w-4 ml-1" />
+                                </a>
+                            ) : (
+                                <p className="text-muted-foreground">N/A</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <p className="text-sm font-semibold">Slack:</p>
+                            <p className="text-muted-foreground">{record.fields["client slack"] || "N/A"}</p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm font-semibold">Onboarding Doc:</p>
+                            {record.fields["client onboarding doc"] ? (
+                                <a href={record.fields["client onboarding doc"]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
+                                    View Document <ExternalLink className="h-4 w-4 ml-1" />
+                                </a>
+                            ) : (
+                                <p className="text-muted-foreground">N/A</p>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex justify-center items-center mt-6 space-x-4">
+                <Button variant="outline" disabled={currentIndex === 0} onClick={() => setCurrentIndex((prev) => prev - 1)}>
+                    Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                    Page {currentIndex + 1} of {emails.length}
+                </span>
+                <Button variant="outline" disabled={currentIndex === emails.length - 1} onClick={() => setCurrentIndex((prev) => prev + 1)}>
+                    Next
+                </Button>
+            </div>
+
+            {/* ✅ Action Buttons */}
+            <div className="flex justify-evenly items-center mt-6">
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={approveAndSend}>
+                    <CheckCircle className="h-4 w-4 text-green-500" /> Approve and Send
+                </Button>
+
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={reviewManually}>
+                    <FileText className="h-4 w-4 text-yellow-500" /> Review Manually
+                </Button>
+
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={reRunAI}>
+                    <RefreshCw className="h-4 w-4 text-blue-500" /> Re-run AI
+                </Button>
+            </div>
+
         </div>
     );
 }
