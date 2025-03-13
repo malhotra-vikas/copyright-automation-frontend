@@ -221,7 +221,6 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                 taskList.forEach(task => delete updated[task.id])
                 return updated
             })
-            console.log("completedTasks are ", completedTasks)
 
             //confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
         }

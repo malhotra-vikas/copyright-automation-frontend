@@ -6,6 +6,51 @@ const AIRTABLE_TABLE_NAME = "Client-Leads"; // Change based on your Airtable tab
 const AIRTABLE_DATA_COUNT = Number(process.env.AIRTABLE_DATA_WRITE_COUNT) || -1; // Default to 100
 const MAX_AIRTABLE_BATCH_SIZE = 10; // Airtable allows only 10 records per request
 
+
+/** ✅ GET: Fetch records by ClickUp Task ID & Status */
+export async function GET(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const taskId = searchParams.get("taskId");
+        const status = searchParams.get("status");
+
+        if (!taskId && !status) {
+            return NextResponse.json(
+                { error: "Please provide a taskId or status to filter records." },
+                { status: 400 }
+            );
+        }
+
+        console.log(`📡 Fetching Airtable records - Task ID: ${taskId || "N/A"} | Status: ${status || "N/A"}`);
+
+        let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=AND(`;
+        if (taskId) url += `{clickup task id}="${taskId}"`;
+        if (taskId && status) url += ",";
+        if (status) url += `{status}="${status}"`;
+        url += ")";
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        const data = await response.json();
+        if (data.error) {
+            throw new Error(`Airtable API Error: ${JSON.stringify(data)}`);
+        }
+
+        console.log(`✅ Retrieved ${data.records.length} records from Airtable`);
+        return NextResponse.json({ success: true, records: data.records }, { status: 200 });
+
+    } catch (error) {
+        console.error("❌ Airtable Fetch API Error:", error);
+        return NextResponse.json({ error: "Failed to fetch data from Airtable" }, { status: 500 });
+    }
+}
+
 // ✅ PATCH method to update Airtable records
 export async function PATCH(req: Request) {
     try {
@@ -149,7 +194,7 @@ export async function POST(req: Request) {
         for (let i = 0; i < records.length; i += MAX_AIRTABLE_BATCH_SIZE) {
             const batch = records.slice(i, i + MAX_AIRTABLE_BATCH_SIZE);
             console.log(`📡 Sending batch ${i / MAX_AIRTABLE_BATCH_SIZE + 1} of ${Math.ceil(records.length / MAX_AIRTABLE_BATCH_SIZE)}...`);
-            
+
             // Wait for the batch to complete before moving to the next one
             const batchResult = await sendBatch(batch);
             storedRecords.push(...batchResult);
