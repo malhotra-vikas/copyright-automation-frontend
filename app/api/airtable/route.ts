@@ -63,6 +63,7 @@ export async function POST(req: Request) {
         let client = body.client
         let clientSlack = body.clientSlack
         let clientOnboardingDoc = body.onboardindDocument
+        let clickupTaskId = body.clickupTask
 
 
         console.log("📡 Data Type:", typeof data);
@@ -109,7 +110,8 @@ export async function POST(req: Request) {
                     "status": "new",
                     "client id": client,
                     "client slack": clientSlack,
-                    "client onboarding doc": clientOnboardingDoc
+                    "client onboarding doc": clientOnboardingDoc,
+                    "clickup task id": clickupTaskId
                 }
             };
         });

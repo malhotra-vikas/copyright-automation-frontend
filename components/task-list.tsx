@@ -143,7 +143,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 console.log("✅ Google Sheet Data Read as :", leads);
 
-                const body = { data: leads, client: clientName, slack: clientSlack, onboardindDocument: clientOnboardingDoc }
+                const body = { data: leads, client: clientName, slack: clientSlack, onboardindDocument: clientOnboardingDoc, clickupTask: task.id }
 
                 // ✅ Step 2: Sending data to Airtable
                 console.log("📡 Sending data to Airtable...", body);
@@ -205,16 +205,11 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                 const updateResult = await airtableUpdatedResponse.json();
                 console.log("✅ Successfully updated Airtable records:", updateResult);
 
-                
-                const completedUpdates = data.reduce((acc: Record<string, string>, result: any) => {
-                    acc[result.taskId] = result.summary || "No summary available"
-                    return acc
-                }, {})
+                // ✅ **Step 5: Mark This Task as Completed**
+                setCompletedTasks(prev => ({ ...prev, [task.id]: "Pitch Processed" }));
 
-                setCompletedTasks(prev => ({ ...prev, ...completedUpdates }))
+
                 toast.success("🎉 AI workflow completed!")
-
-
             }
 
         } catch (error) {
@@ -226,8 +221,9 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                 taskList.forEach(task => delete updated[task.id])
                 return updated
             })
+            console.log("completedTasks are ", completedTasks)
 
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+            //confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
         }
     }
 
