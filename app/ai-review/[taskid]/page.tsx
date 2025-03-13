@@ -150,7 +150,12 @@ export default function AIReview() {
                         <div>
                             <p className="text-sm font-semibold">Website:</p>
                             {record.fields["Website"] ? (
-                                <a href={record.fields["Website"]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
+                                <a
+                                    href={record.fields["Website"].startsWith("http") ? record.fields["Website"] : `https://${record.fields["Website"]}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline flex items-center"
+                                >
                                     {record.fields["Website"]} <ExternalLink className="h-4 w-4 ml-1" />
                                 </a>
                             ) : (
@@ -160,13 +165,25 @@ export default function AIReview() {
 
                         <div>
                             <p className="text-sm font-semibold">Slack:</p>
-                            <p className="text-muted-foreground">{record.fields["client slack"] || "N/A"}</p>
+                            {record.fields["client slack"] ? (
+                                <a 
+                                    href={record.fields["client slack"].startsWith("http") ? record.fields["client slack"] : `https://${record.fields["client slack"]}`}
+                                    target="_blank" rel="noopener noreferrer" 
+                                    className="text-blue-600 hover:underline flex items-center">
+                                    View Document <ExternalLink className="h-4 w-4 ml-1" />
+                                </a>
+                            ) : (
+                                <p className="text-muted-foreground">N/A</p>
+                            )}
                         </div>
 
                         <div>
                             <p className="text-sm font-semibold">Onboarding Doc:</p>
                             {record.fields["client onboarding doc"] ? (
-                                <a href={record.fields["client onboarding doc"]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
+                                <a 
+                                    href={record.fields["client onboarding doc"].startsWith("http") ? record.fields["client onboarding doc"] : `https://${record.fields["client onboarding doc"]}`}
+                                    target="_blank" rel="noopener noreferrer" 
+                                    className="text-blue-600 hover:underline flex items-center">
                                     View Document <ExternalLink className="h-4 w-4 ml-1" />
                                 </a>
                             ) : (
