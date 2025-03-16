@@ -255,10 +255,17 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                     ) : (
                         <>
                             <Zap className="h-5 w-5 text-yellow-500" />
-                            Run AI on All
+                            Test Run AI on All Tasks
                         </>
                     )}
                 </Button>
+            </div>
+
+            <div className="flex items-center justify-between mb-4 gap-2">
+                <div className="flex items-center gap-2">
+                    
+                </div>
+                <p className="text-xs text-gray-500">This will process only 10 records at a time.</p>
             </div>
 
             {/* No Tasks Found */}
@@ -347,11 +354,14 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                                             ) : (
                                                 <>
                                                     <Zap className="h-4 w-4 text-yellow-500" />
-                                                    Run AI
+                                                    Test Run AI
                                                 </>
                                             )}
                                         </Button>
+
+                                        
                                     </div>
+
                                 </CardContent>
                             </Card>
                         ))}
