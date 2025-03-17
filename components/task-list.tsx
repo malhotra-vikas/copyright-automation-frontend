@@ -143,7 +143,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 console.log("✅ Google Sheet Data Read as :", leads);
 
-                const body = { data: leads, client: clientName, slack: clientSlack, onboardindDocument: clientOnboardingDoc, clickupTask: task.id }
+                const body = { data: leads, client: clientName, clientSlack: clientSlack, onboardindDocument: clientOnboardingDoc, clickupTask: task.id }
 
                 // ✅ Step 2: Sending data to Airtable
                 console.log("📡 Sending data to Airtable...", body);
@@ -164,6 +164,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 // ✅ Step 3: Trigger AI Workflow for each Airtable record. 
                 // For each wibsite form the AI Built Pitch-Match
+
                 const pitchMatchResponse = await fetch("/api/ai-workflow", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

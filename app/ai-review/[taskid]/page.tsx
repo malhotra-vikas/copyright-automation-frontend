@@ -122,10 +122,10 @@ export default function AIReview() {
                             <p className="mt-2">
                                 Given you are the {record.fields["Title"]} of the company, i figured it would make sense to reach out.
                             </p>
-                            <p className="mt-2">
+                            <p className="bg-green-100 mt-2">
                                 {record.fields["pitch-product"] || "No pitch-product available"}
                             </p>
-                            <p className="mt-2">
+                            <p className="bg-green-100 mt-2">
                                 {record.fields["pitch-cta"] || "No pitch-cta available"}
                             </p>
 
@@ -170,7 +170,7 @@ export default function AIReview() {
                                     href={record.fields["client slack"].startsWith("http") ? record.fields["client slack"] : `https://${record.fields["client slack"]}`}
                                     target="_blank" rel="noopener noreferrer" 
                                     className="text-blue-600 hover:underline flex items-center">
-                                    View Document <ExternalLink className="h-4 w-4 ml-1" />
+                                    Go to Slack <ExternalLink className="h-4 w-4 ml-1" />
                                 </a>
                             ) : (
                                 <p className="text-muted-foreground">N/A</p>
@@ -184,7 +184,7 @@ export default function AIReview() {
                                     href={record.fields["client onboarding doc"].startsWith("http") ? record.fields["client onboarding doc"] : `https://${record.fields["client onboarding doc"]}`}
                                     target="_blank" rel="noopener noreferrer" 
                                     className="text-blue-600 hover:underline flex items-center">
-                                    View Document <ExternalLink className="h-4 w-4 ml-1" />
+                                    View Onboarding Document <ExternalLink className="h-4 w-4 ml-1" />
                                 </a>
                             ) : (
                                 <p className="text-muted-foreground">N/A</p>
