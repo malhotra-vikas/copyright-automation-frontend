@@ -13,21 +13,31 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const taskId = searchParams.get("taskId");
         const status = searchParams.get("status");
+        const recordId = searchParams.get("recordId"); // ✅ Fetch a single record by ID
 
-        if (!taskId && !status) {
+        if (!taskId && !status && !recordId) {
             return NextResponse.json(
-                { error: "Please provide a taskId or status to filter records." },
+                { error: "Please provide a taskId, status, or recordId to filter records." },
                 { status: 400 }
             );
         }
 
         console.log(`📡 Fetching Airtable records - Task ID: ${taskId || "N/A"} | Status: ${status || "N/A"}`);
 
-        let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=AND(`;
-        if (taskId) url += `{clickup task id}="${taskId}"`;
-        if (taskId && status) url += ",";
-        if (status) url += `{status}="${status}"`;
-        url += ")";
+        //let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=AND(`;
+
+        let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`;
+        if (recordId) {
+            // ✅ Fetch a specific record by ID
+            url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}/${recordId}`;
+        } else {
+            // ✅ Fetch records filtered by Task ID or Status
+            url += `?filterByFormula=AND(`;
+            if (taskId) url += `{clickup task id}="${taskId}"`;
+            if (taskId && status) url += ",";
+            if (status) url += `{status}="${status}"`;
+            url += ")";    
+        }
 
         const response = await fetch(url, {
             method: "GET",
@@ -42,6 +52,12 @@ export async function GET(req: Request) {
             throw new Error(`Airtable API Error: ${JSON.stringify(data)}`);
         }
 
+        // ✅ If fetching a single record, return it directly
+        if (recordId) {
+            console.log(`✅ Retrieved single record from Airtable:`, data);
+            return NextResponse.json({ success: true, record: data }, { status: 200 });
+        }
+        
         console.log(`✅ Retrieved ${data.records.length} records from Airtable`);
         return NextResponse.json({ success: true, records: data.records }, { status: 200 });
 

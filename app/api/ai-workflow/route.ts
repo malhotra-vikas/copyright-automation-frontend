@@ -37,6 +37,31 @@ const getClientWebsiteFromTask = async (task: any): Promise<string> => {
     return websiteField?.value || null
 }
 
+// ✅ Function to Process AI Tasks (Re-used for Single & Batch Processing)
+const processAIForRecord = async (record: any, clientOnboardingDocument: string) => {
+    try {
+        const pitchMatch = await fetchWithRetry(() => processPitchMatchAI(record));
+        const pitchProduct = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument));
+        const pitchCta = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatch, pitchProduct));
+
+        return {
+            recordId: record.id,
+            pitchMatch,
+            pitchProduct,
+            pitchCta
+        };
+    } catch (error) {
+        console.error(`❌ AI Error for Task ID ${record.id}:`, error);
+        return {
+            recordId: record.id,
+            pitchMatch: "Failed to generate summary",
+            pitchProduct: "Failed to generate summary",
+            pitchCta: "Failed to generate summary"
+        };
+    }
+};
+
+
 // **Fetch AI Summary for a Website**
 const fetchWebsiteSummary = async (websiteUrl: string): Promise<string> => {
     try {
@@ -96,7 +121,7 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
     const pitchClientOnboardingDoc = recordData["client onboarding doc"]
     const pitchClientName = recordData["client id"]
     const pitchLeadWebsite = recordData["Website"]
-
+/*
     const prompt = `Based on the customer's business and product : "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}". 
                     Draft a call to action of no more than 20 words for CLIENT "${pitchClientName}". 
                     The call to action, must be about coloboration such as meeting, getting on a call, etc that can help the customer learfn more about the client's offering. 
@@ -104,6 +129,18 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
                     Keep the tone informative and neutral.
                     Use natural language, and include relevant product examples without formatting.
                     No not include anything else apart from the draft pitch statement`;
+*/
+    const prompt = `Based on the customer's business and product: "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}", 
+                    draft a call to action of no more than 20 words for CLIENT "${pitchClientName}". 
+
+                    The call to action must **explicitly invite collaboration**, such as scheduling a call, booking a demo, or meeting. 
+                    The response must include a clear next step like "Let's schedule a call," "Let's connect for a discussion," or "Book a quick demo."
+
+                    Do not be pushy. Use clear, professional, natural, and factual language. Do not add superlatives, exaggerations, or marketing buzzwords.
+                    Keep the tone informative and neutral.
+                    
+                    **Response must be formatted as a single statement with no additional context.**`;
+
 
     console.log("Prompt being run is ", prompt)
 
@@ -297,7 +334,48 @@ export async function POST(req: Request) {
     try {
         // ✅ Parse request body safely
         const body = await req.json();
-        const { airtableRecords, testDrive, clientOnboardingDocument } = body || {};  // Prevents `undefined` errors
+        const { airtableRecords, testDrive, clientOnboardingDocument, recordId } = body || {};  // Prevents `undefined` errors
+
+        // ✅ Handle Re-run for a Single Record
+        if (recordId) {
+            console.log(`🔄 Fetching latest Airtable record for Record ID: ${recordId}`);
+
+            const airtableApiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/airtable?recordId=${recordId}`;
+
+
+            // ✅ Fetch the latest record from Airtable
+            const airtableResponse = await fetch(airtableApiUrl);
+            const airtableData = await airtableResponse.json();
+
+            if (!airtableResponse.ok || !airtableData.success || !airtableData.record) {
+                throw new Error("Failed to fetch the latest record from Airtable.");
+            }
+
+            const latestRecord = airtableData.record;
+            console.log("✅ Latest Airtable Record:", latestRecord);
+
+            const readOnboardingDocUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/read-onboarding-doc`;
+
+            const onboardingDocResponse = await fetch(readOnboardingDocUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ docURL: latestRecord.fields["client onboarding doc"] }),
+            });
+
+            let documentRead = await onboardingDocResponse.json();
+            let documentReadText = documentRead.text
+            console.log("✅ Docuemnt Read as :", documentReadText);
+
+
+            if (!latestRecord) {
+                return NextResponse.json({ error: "Record not found" }, { status: 404 });
+            }
+            console.log(`🔄 record for Record ID: ${latestRecord}`);
+
+            const aiResult = await processAIForRecord(latestRecord, documentReadText);
+            console.log(`✅ AI Re-run Completed for Record ID: ${recordId}`);
+            return NextResponse.json({ success: true, result: aiResult }, { status: 200 });
+        }
 
         console.log("📡 Received Air Table Records:", airtableRecords?.length ?? 0, "tasks");
         console.log("📡 Received pitch_match_at_scale:", testDrive);

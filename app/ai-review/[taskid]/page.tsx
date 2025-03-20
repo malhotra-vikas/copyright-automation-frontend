@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, RefreshCw, ExternalLink, CheckCircle, FileText } from "lucide-react";
+import { toast } from "react-toastify";
 
 interface AirtableRecord {
     id: string;
@@ -86,13 +87,131 @@ export default function AIReview() {
         throw new Error("Function not implemented.");
     }
 
-    function reviewManually(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
-        throw new Error("Function not implemented.");
+    async function reviewManually() {
+        console.log(`🔄 Marking ClickUp Task ${record.fields["clickup task id"]} as "REVIEW MANUALLY"`);
+
+        // ✅ Step 1: Set ClickUp task status to "REVIEW MANUALLY"
+        const response = await fetch("/api/clickup", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                taskId: record.fields["clickup task id"],
+                status: "REVIEW MANUALLY",
+            }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Failed to update ClickUp task status.");
+        }
+
+        console.log("✅ ClickUp task updated successfully. Redirecting to dashboard...");
+        toast.success("✅ ClickUp task updated successfully. Redirecting to dashboard...")
+
+        // ✅ Step 2: Redirect to the dashboard
+        router.push("/dashboard");
     }
 
-    function reRunAI(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
-        throw new Error("Function not implemented.");
+    // ✅ Update a Single Airtable Record with AI-Generated Data
+    async function updateAirtableRecord(recordId: string, pitchMatch: string, pitchProduct: string, pitchCta: string) {
+        try {
+            console.log(`🔄 Updating Airtable record ${recordId} with AI-generated pitch`);
+
+            const recordsToUpdate = [
+                {
+                    id: recordId, // Airtable Record ID
+                    fields: {
+                        "pitch-match": pitchMatch || "No summary available",
+                        "pitch-product": pitchProduct || "No summary available",
+                        "pitch-cta": pitchCta || "No summary available",
+                        "status": "processed" // Optional: update the status to indicate AI processing is complete
+                    }
+                }
+            ];
+
+            const airtableUpdatedResponse = await fetch("/api/airtable", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ airtableRecords: recordsToUpdate }),
+            });
+
+            const airtableData = await airtableUpdatedResponse.json();
+
+            if (!airtableUpdatedResponse.ok || !airtableData.success) {
+                throw new Error(`Failed to update Airtable: ${JSON.stringify(airtableData.error)}`);
+            }
+
+            console.log(`✅ Airtable Record ${recordId} updated successfully`);
+            return true;
+        } catch (error) {
+            console.error(`❌ Error updating Airtable Record ${recordId}:`, error);
+            return false;
+        }
     }
+
+    async function reRunAI() {
+        if (!record) return;
+
+        setLoading(true);
+
+        try {
+
+            console.log(`🔄 Sending AI re-run request for Record ID: ${record.id}`);
+
+            const response = await fetch("/api/ai-workflow", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    recordId: record.id // Use latest record ID
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to re-run AI.");
+            }
+
+            console.log("✅ AI Re-run Successful:", data);
+
+            // ✅  Update the relevent Air Table Record with the AI Generated Pitch
+            const updated = await updateAirtableRecord(record.id, data.result.pitchMatch, data.result.pitchProduct, data.result.pitchCta);
+
+            if (updated) {
+                console.log("✅ Airtable record successfully updated.");
+                toast.success("✅ Airtable record successfully updated.")
+            } else {
+                console.warn("⚠️ Airtable record update failed.");
+            }
+
+
+            // ✅ Update UI with new AI-generated content
+            setEmails((prevEmails) =>
+                prevEmails.map((email) =>
+                    email.id === record.id
+                        ? {
+                            ...email,
+                            fields: {
+                                ...email.fields,
+                                "pitch-match": data.result.pitchMatch,
+                                "pitch-product": data.result.pitchProduct,
+                                "pitch-cta": data.result.pitchCta
+                            }
+                        }
+                        : email
+                )
+            );
+        } catch (error) {
+            console.error("❌ Error re-running AI:", error);
+            alert("Failed to re-run AI. Please try again later.");
+        } finally {
+            setLoading(false);
+        }
+    }
+
 
     return (
         <div className="max-w-6xl mx-auto py-10 h-screen flex flex-col">
@@ -166,9 +285,9 @@ export default function AIReview() {
                         <div>
                             <p className="text-sm font-semibold">Slack:</p>
                             {record.fields["client slack"] ? (
-                                <a 
+                                <a
                                     href={record.fields["client slack"].startsWith("http") ? record.fields["client slack"] : `https://${record.fields["client slack"]}`}
-                                    target="_blank" rel="noopener noreferrer" 
+                                    target="_blank" rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline flex items-center">
                                     Go to Slack <ExternalLink className="h-4 w-4 ml-1" />
                                 </a>
@@ -180,9 +299,9 @@ export default function AIReview() {
                         <div>
                             <p className="text-sm font-semibold">Onboarding Doc:</p>
                             {record.fields["client onboarding doc"] ? (
-                                <a 
+                                <a
                                     href={record.fields["client onboarding doc"].startsWith("http") ? record.fields["client onboarding doc"] : `https://${record.fields["client onboarding doc"]}`}
-                                    target="_blank" rel="noopener noreferrer" 
+                                    target="_blank" rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline flex items-center">
                                     View Onboarding Document <ExternalLink className="h-4 w-4 ml-1" />
                                 </a>
@@ -209,17 +328,21 @@ export default function AIReview() {
 
             {/* ✅ Action Buttons */}
             <div className="flex justify-evenly items-center mt-6">
-                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={approveAndSend}>
-                    <CheckCircle className="h-4 w-4 text-green-500" /> Approve and Send
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={approveAndSend} disabled={loading}>
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    {loading ? "Updating..." : "Approve and Send"}
                 </Button>
 
-                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={reviewManually}>
-                    <FileText className="h-4 w-4 text-yellow-500" /> Review Manually
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={reviewManually} disabled={loading}>
+                    <FileText className="h-4 w-4 text-yellow-500" />
+                    {loading ? "Updating...." : "Review Manually"}
                 </Button>
 
-                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={reRunAI}>
-                    <RefreshCw className="h-4 w-4 text-blue-500" /> Re-run AI
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={reRunAI} disabled={loading}>
+                    <RefreshCw className="h-4 w-4 text-blue-500" />
+                    {loading ? "Re-running..." : "Re-run AI"}
                 </Button>
+
             </div>
 
         </div>
