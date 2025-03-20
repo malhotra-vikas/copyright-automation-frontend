@@ -123,23 +123,24 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 const clientName = await getClientFromTask(task)
 
-                //const clientArtifacts = await fetch("/api/setup-client?clientName=")
-                const response = await fetch(`/api/setup-client?clientName=${encodeURIComponent(clientName)}`);
+                // Make it lowercase and add a hyphen for space. THis is the format in which the folder for each client exists
+                const formattedClientName = clientName.toLowerCase().replace(/\s+/g, "-");
+                const response = await fetch(`/api/setup-client?clientName=${encodeURIComponent(formattedClientName)}`);
 
                 if (!response.ok) {
-                    toast.error(`Client Leads and Onboarding doc not available for client name: ${clientName}`)
+                    toast.error(`Client Leads and Onboarding doc not available for client name: ${formattedClientName}`)
                 }
 
                 const clientArtifacts = await response.json();
 
                 const clientLeads = clientArtifacts.leadsFile
                 if (!clientLeads) {
-                    toast.error(`Client Leads not available for client name: ${clientName}`)
+                    toast.error(`Client Leads not available for client name: ${formattedClientName}`)
                 }
 
                 const clientOnboarding = clientArtifacts.onboardingDoc
                 if (!clientOnboarding) {
-                    toast.error(`Client Onboarding doc not available for client name: ${clientName}`)
+                    toast.error(`Client Onboarding doc not available for client name: ${formattedClientName}`)
                 }
 
                 const clientGoogleDriveLink = await getClientGoogleDriveFromTask(task)                

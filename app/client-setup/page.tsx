@@ -70,14 +70,14 @@ export default function UploadClientData() {
 
                     {/* Upload Leads File (CSV/Excel) */}
                     <div>
-                        <label className="block text-sm font-medium">Upload Leads (CSV/Excel)</label>
+                        <label className="block text-sm font-medium">Upload Leads (XLSX)</label>
                         <Input type="file" accept=".csv, .xlsx" onChange={(e) => handleFileChange(e, setLeadsFile)} />
                         {leadsFile && <p className="text-sm text-gray-500 mt-1">Selected: {leadsFile.name}</p>}
                     </div>
 
                     {/* Upload Onboarding Document */}
                     <div>
-                        <label className="block text-sm font-medium">Upload Onboarding Document (PDF/DOCX)</label>
+                        <label className="block text-sm font-medium">Upload Onboarding Document (DOCX)</label>
                         <Input type="file" accept=".pdf, .docx" onChange={(e) => handleFileChange(e, setOnboardingDoc)} />
                         {onboardingDoc && <p className="text-sm text-gray-500 mt-1">Selected: {onboardingDoc.name}</p>}
                     </div>

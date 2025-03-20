@@ -1,9 +1,31 @@
 import { NextResponse } from "next/server"
+import pLimit from "p-limit";
+
+const RATE_LIMIT_PERPLIXITY = Number(process.env.PERPLIXITY_RATE_LIMIT) || 5;
+
+// Set concurrency limit (e.g., 5 requests at a time)
+const perplixityRateLimit = pLimit(RATE_LIMIT_PERPLIXITY);
 
 const PERPLEXITY_API_KEY = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY as string
 
 const PITCH_TEST_RUN_LIMIT = Number(process.env.PITCH_TEST_RUN) || 10;
 
+const fetchWithRetry = async (fn, retries = 5, delay = 2000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn(); // Call the AI function
+        } catch (error) {
+            const isRateLimited = error.message.includes("503");
+
+            console.warn(`⚠️ Perplexity API retry ${i + 1}/${retries}: ${error.message}`);
+
+            if (!isRateLimited) throw error; // Exit if it's not a rate limit issue
+
+            await new Promise((res) => setTimeout(res, delay * Math.pow(2, i))); // Exponential backoff (2s, 4s, 8s…)
+        }
+    }
+    throw new Error("Failed after multiple retries"); // Fails after max retries
+};
 
 // **Helper: Extract Website from Task**
 const getClientWebsiteFromTask = async (task: any): Promise<string> => {
@@ -75,14 +97,15 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
     const pitchClientName = recordData["client id"]
     const pitchLeadWebsite = recordData["Website"]
 
-    const prompt = `Based on the customer's business and product : "${pitchMatch}" and how the client's solution can help described in ${pitchProduct}. 
-                    Draft a call to action of no more than 20 words for CLIENT ${pitchClientName}.
-                    Use clear, professional and factual language. Do not add superlatives, exaggerations or marketing buzzworkds. 
+    const prompt = `Based on the customer's business and product : "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}". 
+                    Draft a call to action of no more than 20 words for CLIENT "${pitchClientName}". 
+                    The call to action, must be about coloboration such as meeting, getting on a call, etc that can help the customer learfn more about the client's offering. 
+                    Do not be pushy. Use clear, professional, natural and factual language. Do not add superlatives, exaggerations or marketing buzzworkds. 
                     Keep the tone informative and neutral.
                     Use natural language, and include relevant product examples without formatting.
                     No not include anything else apart from the draft pitch statement`;
-                    
-    console.log("Prompt being run is ", prompt)                    
+
+    console.log("Prompt being run is ", prompt)
 
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -145,15 +168,18 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
 
     console.log("docContent fetched (first 100 chars):", docContent);
 
-    const prompt = `Based on the following document content: "${docContent}". 
-                    Draft a pitch of no more than 100 words for CLIENT ${pitchClientName}.
-                    The pitch should explain how their product or service helps businesses like ${pitchLeadWebsite}.
-                    Use clear, professional and factual language. Do not add superlatives, exaggerations or marketing buzzworkds. 
-                    Keep the tone informative and neutral.
-                    Use natural language, and include relevant product examples without formatting.
-                    No not include anything else apart from the draft pitch statement`;
+    const prompt = `Using the following document content: "${docContent}", 
+                    draft a concise pitch (no more than 100 words) for CLIENT "${pitchClientName}".
                     
-    console.log("Prompt being run is ", prompt)                    
+                    The pitch should explain how their product or service benefits businesses like "${pitchLeadWebsite}". 
+                    Use clear, professional, and factual language without superlatives, exaggerations, or marketing buzzwords. 
+                    Maintain an informative and neutral tone. 
+
+                    Ensure the response is in natural language, includes relevant product examples, and is formatted as a single statement.
+                    The pitch MUST be in 1st Person as if "${pitchClientName}" is speaking it.
+                    Do not include any extra information beyond the pitch itself.`;
+
+    console.log("Prompt being run is ", prompt)
 
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -211,7 +237,7 @@ async function processPitchMatchAI(airtableRecord: any): Promise<string> {
     //console.log("AI Processing airtable Record - ", recordData)
     const pitchSite = recordData["Website"]
 
-    const prompt = `Analyze the ${pitchSite} and draft a pitch of no more than 45 words. The pitch should read natural as if a human has written it. 
+    const prompt = `Analyze the "${pitchSite}" and draft a pitch of no more than 45 words. The pitch should read natural as if a human has written it. 
                     The pitch must be like this or similar - I came across your website when searching for [X] and noticed you helping [Y] Group with [Z] solution.
                     Fill in relevant information in X, Y and Z placeholders. Include some relevant product examples.
                     Use clear, professional and factual language. Do not add superlatives, exaggerations or marketing buzzworkds. 
@@ -290,31 +316,34 @@ export async function POST(req: Request) {
             console.log(`✅ Test-Run - Processing only ${limitedRecords.length} AirTable Records (limit: ${PITCH_TEST_RUN_LIMIT})`);
         }
 
-        // ✅ Process AI Tasks in Parallel
-        const aiResults = await Promise.all(
-            limitedRecords.map(async (record) => {
-                try {
-                    const pitchMatch = await processPitchMatchAI(record);
-                    const pitchProduct = await processPitchProductAI(record, clientOnboardingDocument);
-                    const pitchCta = await processPitchCTAAI(record, pitchMatch, pitchProduct);
+        let aiResults: { recordId: any; pitchMatch: string; pitchProduct: string; pitchCta: string; }[] = [];
+        let batchCount = 0; // ✅ Track number of batches executed
 
-                    return {
-                        recordId: record.id,
-                        name: record.fields["full name"],
-                        pitchMatch,
-                        pitchProduct,
-                        pitchCta
-                    };
-                } catch (error) {
-                    console.error(`❌ AI Error for Task ID ${record.id}:`, error);
-                    return {
-                        recordId: record.id,
-                        name: record.fields["full name"],
-                        pitchMatch: "Failed to generate summary",
-                        pitchProduct: "Failed to generate summary",
-                        pitchCta: "Failed to generate summary"
-                    };
-                }
+        aiResults = await Promise.all(
+            limitedRecords.map(async (record) => {
+                return perplixityRateLimit(async () => { // ✅ Await this function properly
+                    try {
+
+                        const pitchMatch = await fetchWithRetry(() => processPitchMatchAI(record));
+                        const pitchProduct = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument));
+                        const pitchCta = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatch, pitchProduct));
+
+                        return {
+                            recordId: record.id,
+                            pitchMatch,
+                            pitchProduct,
+                            pitchCta
+                        };
+                    } catch (error) {
+                        console.error(`❌ AI Error for Task ID ${record.id}:`, error);
+                        return {
+                            recordId: record.id,
+                            pitchMatch: "Failed to generate summary",
+                            pitchProduct: "Failed to generate summary",
+                            pitchCta: "Failed to generate summary"
+                        };
+                    }
+                }); // ✅ This must be awaited inside Promise.all()
             })
         );
 
