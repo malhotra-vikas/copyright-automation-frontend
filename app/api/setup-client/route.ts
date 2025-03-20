@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import sanitize from "sanitize-filename";
+import fs from "fs";
+
+const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
 
 async function saveFile(file: File, folderPath: string, fileName: string): Promise<string> {
     const buffer = await file.arrayBuffer();
@@ -58,5 +61,50 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error("❌ Upload Error:", error);
         return NextResponse.json({ error: "Failed to process upload" }, { status: 500 });
+    }
+}
+
+
+export async function GET(req: Request) {
+    try {
+        // Extract client name from query params
+        const url = new URL(req.url);
+        let clientName = url.searchParams.get("clientName");
+        clientName = clientName?.toLowerCase()
+
+        if (!clientName) {
+            return NextResponse.json({ error: "Client name is required" }, { status: 400 });
+        }
+
+        const clientFolder = path.join(UPLOADS_DIR, clientName);
+
+        if (!fs.existsSync(clientFolder)) {
+            return NextResponse.json({ error: "Client folder not found" }, { status: 404 });
+        }
+
+        // List all files in the client folder
+        const files = fs.readdirSync(clientFolder);
+
+        console.log("All files in client folder are ", files)
+
+        // Match leads file (CSV or Excel)
+        const leadsFile = files.find(file =>
+            file.startsWith(`${clientName}-leads`) && (file.endsWith(".csv") || file.endsWith(".xls") || file.endsWith(".xlsx"))
+        );
+
+        // Match onboarding document (DOC, DOCX, or PDF)
+        const onboardingDoc = files.find(file =>
+            file.startsWith(`${clientName}-onboarding`) && (file.endsWith(".doc") || file.endsWith(".docx") || file.endsWith(".pdf"))
+        );
+
+        return NextResponse.json({
+            success: true,
+            leadsFile: leadsFile ? `/uploads/${clientName.toLowerCase()}/${leadsFile}` : null,
+            onboardingDoc: onboardingDoc ? `/uploads/${clientName.toLowerCase()}/${onboardingDoc}` : null
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching client files:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

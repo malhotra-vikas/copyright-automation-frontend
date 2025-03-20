@@ -11,6 +11,9 @@ import type { ClickUpTask } from "@/lib/clickup"
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 
+import path from "path";
+
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 interface TaskListProps {
     tasks: ClickUpTask[]
@@ -95,7 +98,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
     const getClientWebsiteFromTask = async (task: any): Promise<string> => {
         return getCustomFieldValue(task, ["client-website", "website"]);
     };
-
+    
     const triggerAIWorkflow = async (taskList: ClickUpTask[]) => {
         if (taskList.length === 0) return
 
@@ -115,22 +118,41 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                     body: JSON.stringify({ taskId: task.id, status: "AI PROCESSING" }),
                 });
 
-                const clientGoogleDriveLink = await getClientGoogleDriveFromTask(task)
-                const clientWebsiteLink = await getClientWebsiteFromTask(task)
-                const clientLeadsGoogleSheetLink = await getClientLeadsGoogleSheetFromTask(task)
+                //const clientLeadsGoogleSheetLink = await getClientLeadsGoogleSheetFromTask(task)
+                //const clientOnboardingDoc = await getClientOnboardingDocFromTask(task)
+
                 const clientName = await getClientFromTask(task)
+
+                //const clientArtifacts = await fetch("/api/setup-client?clientName=")
+                const response = await fetch(`/api/setup-client?clientName=${encodeURIComponent(clientName)}`);
+
+                if (!response.ok) {
+                    toast.error(`Client Leads and Onboarding doc not available for client name: ${clientName}`)
+                }
+
+                const clientArtifacts = await response.json();
+
+                const clientLeads = clientArtifacts.leadsFile
+                if (!clientLeads) {
+                    toast.error(`Client Leads not available for client name: ${clientName}`)
+                }
+
+                const clientOnboarding = clientArtifacts.onboardingDoc
+                if (!clientOnboarding) {
+                    toast.error(`Client Onboarding doc not available for client name: ${clientName}`)
+                }
+
+                const clientGoogleDriveLink = await getClientGoogleDriveFromTask(task)                
+                const clientWebsiteLink = await getClientWebsiteFromTask(task)
                 const clientSlack = await getClientSlackFromTask(task)
-                const clientOnboardingDoc = await getClientOnboardingDocFromTask(task)
 
-                console.log(clientGoogleDriveLink)
-                console.log(clientWebsiteLink)
-                console.log(clientLeadsGoogleSheetLink)
+                console.log(`For Cliennt Name ${clientName}, we have website as ${clientWebsiteLink}, the leads doc link as ${clientLeads} and Onboarding doc link as ${clientOnboarding}`)
 
-                // ✅ Step 1: Store Google Sheet Data in Airtable
-                const leadsResponse = await fetch("/api/google-sheet", {
+                // ✅ Step 1: Read the data from the leads to be later passed to Airtable
+                const leadsResponse = await fetch("/api/read-leads", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ sheetUrl: clientLeadsGoogleSheetLink }),
+                    body: JSON.stringify({ leadsURL: clientLeads }),
                 });
 
                 let leads = await leadsResponse.json();
@@ -143,7 +165,17 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 console.log("✅ Google Sheet Data Read as :", leads);
 
-                const body = { data: leads, client: clientName, clientSlack: clientSlack, onboardindDocument: clientOnboardingDoc, clickupTask: task.id }
+                const onboardingDocResponse = await fetch("/api/read-onboarding-doc", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ docURL: clientOnboarding }),
+                });
+
+                let documentRead = await onboardingDocResponse.json();
+                let documentReadText = documentRead.text
+                console.log("✅ Docuemnt Read as :", documentReadText);
+
+                const body = { data: leads, client: clientName, clientSlack: clientSlack, onboardindDocument: clientOnboarding, clickupTask: task.id }
 
                 // ✅ Step 2: Sending data to Airtable
                 console.log("📡 Sending data to Airtable...", body);
@@ -164,47 +196,15 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 // ✅ Step 3: Trigger AI Workflow for each Airtable record. 
                 // For each wibsite form the AI Built Pitch-Match
+                await fetchAndUpdatePitchMatch(airtableResult, documentReadText);
 
-                const pitchMatchResponse = await fetch("/api/ai-workflow", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        airtableRecords: airtableResult.storedRecords,
-                        aiTaskType: "Pitch-Match",
-                        testDrive: "Yes"
-                    }),
-                })
+                // ✅ Step 4: Trigger AI Workflow for each Airtable record. 
+                // For each wibsite form the AI Built Pitch-Match
+                //await fetchAndUpdatePitchProduct(airtableResult);
 
-                // ✅ Handle possible empty response
-                if (!pitchMatchResponse.ok) {
-                    throw new Error(`Server Error: ${pitchMatchResponse.statusText}`);
-                }
-                const data = await pitchMatchResponse.json();
-
-                // ✅ Check if the response contains expected data
-                if (!data || !data.results || !Array.isArray(data.results)) {
-                    throw new Error("Invalid response format from server");
-                }
-                console.log("✅ AI Workflow Results:", data.results);
-
-                // ✅ Step 4: Update the relevent Air Table Record with the AI Generated Pitch
-
-                const recordsToUpdate = data.results.map(record => ({
-                    id: record.recordId,  // Airtable Record ID
-                    fields: {
-                        "pitch-match": record.summary || "No summary available", // Ensure a fallback value
-                        "status": "processed" // Optional: update the status to indicate AI processing is complete
-                    }
-                }));
-                
-                const airtableUpdatedResponse = await fetch("/api/airtable", {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ airtableRecords: recordsToUpdate }),
-                });
-                
-                const updateResult = await airtableUpdatedResponse.json();
-                console.log("✅ Successfully updated Airtable records:", updateResult);
+                // ✅ Step 5: Trigger AI Workflow for each Airtable record. 
+                // For each wibsite form the AI Built Pitch-Match
+                //await fetchAndUpdatePitchCTA(airtableResult);
 
                 // ✅ **Step 5: Mark This Task as Completed**
                 setCompletedTasks(prev => ({ ...prev, [task.id]: "Pitch Processed" }));
@@ -264,7 +264,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
             <div className="flex items-center justify-between mb-4 gap-2">
                 <div className="flex items-center gap-2">
-                    
+
                 </div>
                 <p className="text-xs text-gray-500">This will process only 10 records at a time.</p>
             </div>
@@ -360,7 +360,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                                             )}
                                         </Button>
 
-                                        
+
                                     </div>
 
                                 </CardContent>
@@ -393,3 +393,92 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
         </div>
     )
 }
+
+async function fetchAndUpdatePitchProduct(airtableResult: any) {
+    const pitchMatchResponse = await fetch("/api/ai-workflow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            airtableRecords: airtableResult.storedRecords,
+            aiTaskType: "Pitch-Product",
+            testDrive: "Yes"
+        }),
+    });
+
+    // ✅ Handle possible empty response
+    if (!pitchMatchResponse.ok) {
+        throw new Error(`Server Error: ${pitchMatchResponse.statusText}`);
+    }
+    const data = await pitchMatchResponse.json();
+
+    // ✅ Check if the response contains expected data
+    if (!data || !data.results || !Array.isArray(data.results)) {
+        throw new Error("Invalid response format from server");
+    }
+    console.log("✅ AI Workflow Results:", data.results);
+
+    // ✅ Step 4: Update the relevent Air Table Record with the AI Generated Pitch
+    const recordsToUpdate = data.results.map(record => ({
+        id: record.recordId, // Airtable Record ID
+        fields: {
+            "pitch-match": record.summary || "No summary available", // Ensure a fallback value
+            "status": "processed" // Optional: update the status to indicate AI processing is complete
+        }
+    }));
+
+    const airtableUpdatedResponse = await fetch("/api/airtable", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ airtableRecords: recordsToUpdate }),
+    });
+
+    const updateResult = await airtableUpdatedResponse.json();
+    console.log("✅ Successfully updated Airtable records:", updateResult);
+}
+
+
+async function fetchAndUpdatePitchMatch(airtableResult: any, documentReadText: any) {
+    const pitchMatchResponse = await fetch("/api/ai-workflow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            airtableRecords: airtableResult.storedRecords,
+            aiTaskType: "Pitch-Match",
+            testDrive: "Yes",
+            clientOnboardingDocument: documentReadText
+        }),
+    });
+
+    // ✅ Handle possible empty response
+    if (!pitchMatchResponse.ok) {
+        throw new Error(`Server Error: ${pitchMatchResponse.statusText}`);
+    }
+    const data = await pitchMatchResponse.json();
+
+    // ✅ Check if the response contains expected data
+    if (!data || !data.results || !Array.isArray(data.results)) {
+        throw new Error("Invalid response format from server");
+    }
+    console.log("✅ AI Workflow Results:", data.results);
+
+    // ✅ Step 4: Update the relevent Air Table Record with the AI Generated Pitch
+    const recordsToUpdate = data.results.map(record => ({
+        id: record.recordId, // Airtable Record ID
+        fields: {
+            "pitch-match": record.pitchMatch || "No summary available", // Ensure a fallback value
+            "pitch-product": record.pitchProduct || "No summary available", // Ensure a fallback value
+            "pitch-cta": record.pitchCta || "No summary available", // Ensure a fallback value
+            "status": "processed" // Optional: update the status to indicate AI processing is complete
+        }
+    }));
+
+    const airtableUpdatedResponse = await fetch("/api/airtable", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ airtableRecords: recordsToUpdate }),
+    });
+
+    const updateResult = await airtableUpdatedResponse.json();
+    console.log("✅ Successfully updated Airtable records:", updateResult);
+}
+
