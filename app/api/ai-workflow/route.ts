@@ -114,22 +114,14 @@ const fetchWebsiteSummary = async (websiteUrl: string): Promise<string> => {
 
 
 // ✅ Function to Process Pitch-Product AI
-async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchProduct: string): Promise<string> {
+async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchProduct: string): Promise<{ pitchCtaPrompt: string; pitchCtaSummary: string }> {
     const recordData = airtableRecord.fields;
 
     //console.log("AI Processing airtable Record - ", recordData)
     const pitchClientOnboardingDoc = recordData["client onboarding doc"]
     const pitchClientName = recordData["client id"]
     const pitchLeadWebsite = recordData["Website"]
-/*
-    const prompt = `Based on the customer's business and product : "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}". 
-                    Draft a call to action of no more than 20 words for CLIENT "${pitchClientName}". 
-                    The call to action, must be about coloboration such as meeting, getting on a call, etc that can help the customer learfn more about the client's offering. 
-                    Do not be pushy. Use clear, professional, natural and factual language. Do not add superlatives, exaggerations or marketing buzzworkds. 
-                    Keep the tone informative and neutral.
-                    Use natural language, and include relevant product examples without formatting.
-                    No not include anything else apart from the draft pitch statement`;
-*/
+
     const prompt = `Based on the customer's business and product: "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}", 
                     draft a call to action of no more than 20 words for CLIENT "${pitchClientName}". 
 
@@ -142,8 +134,6 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
                     **Response must be formatted as a single statement with no additional context.**`;
 
 
-    console.log("Prompt being run is ", prompt)
-
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
             method: "POST",
@@ -181,7 +171,8 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
         const data = JSON.parse(text)
 
         if (data.choices && data.choices.length > 0) {
-            return data.choices[0].message.content.trim()
+            const summary = data.choices[0].message.content.trim()
+            return { pitchCtaPrompt: prompt, pitchCtaSummary: summary }
         } else {
             throw new Error("No valid response from Perplexity AI")
         }
@@ -193,7 +184,7 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
 }
 
 // ✅ Function to Process Pitch-Product AI
-async function processPitchProductAI(airtableRecord: any, clientOnboardingDocument: string): Promise<string> {
+async function processPitchProductAI(airtableRecord: any, clientOnboardingDocument: string): Promise<{ pitchProductPrompt: string; pitchProductSummary: string }> {
     const recordData = airtableRecord.fields;
 
     //console.log("AI Processing airtable Record - ", recordData)
@@ -202,8 +193,6 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
     const pitchLeadWebsite = recordData["Website"]
 
     const docContent = clientOnboardingDocument;
-
-    console.log("docContent fetched (first 100 chars):", docContent);
 
     const prompt = `Using the following document content: "${docContent}", 
                     draft a concise pitch (no more than 100 words) for CLIENT "${pitchClientName}".
@@ -216,8 +205,6 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
                     The pitch MUST be in 1st Person as if "${pitchClientName}" is speaking it.
                     Do not include any extra information beyond the pitch itself.`;
 
-    console.log("Prompt being run is ", prompt)
-
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
             method: "POST",
@@ -255,7 +242,8 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
         const data = JSON.parse(text)
 
         if (data.choices && data.choices.length > 0) {
-            return data.choices[0].message.content.trim()
+            const summary = data.choices[0].message.content.trim()
+            return { pitchProductPrompt: prompt, pitchProductSummary: summary }
         } else {
             throw new Error("No valid response from Perplexity AI")
         }
@@ -268,7 +256,7 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
 
 
 // ✅ Function to Process Pitch-Match AI
-async function processPitchMatchAI(airtableRecord: any): Promise<string> {
+async function processPitchMatchAI(airtableRecord: any): Promise<{ pitchMatchPrompt: string; pitchMatchSummary: string }> {
     const recordData = airtableRecord.fields;
 
     //console.log("AI Processing airtable Record - ", recordData)
@@ -318,7 +306,8 @@ async function processPitchMatchAI(airtableRecord: any): Promise<string> {
         const data = JSON.parse(text)
 
         if (data.choices && data.choices.length > 0) {
-            return data.choices[0].message.content.trim()
+            const summary = data.choices[0].message.content.trim()
+            return { pitchMatchPrompt: prompt, pitchMatchSummary: summary }
         } else {
             throw new Error("No valid response from Perplexity AI")
         }
@@ -395,37 +384,49 @@ export async function POST(req: Request) {
         }
 
         let aiResults: { recordId: any; pitchMatch: string; pitchProduct: string; pitchCta: string; }[] = [];
-        let batchCount = 0; // ✅ Track number of batches executed
 
         aiResults = await Promise.all(
             limitedRecords.map(async (record) => {
                 return perplixityRateLimit(async () => { // ✅ Await this function properly
                     try {
 
-                        const pitchMatch = await fetchWithRetry(() => processPitchMatchAI(record));
-                        const pitchProduct = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument));
-                        const pitchCta = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatch, pitchProduct));
+                        const { pitchMatchPrompt, pitchMatchSummary } = await fetchWithRetry(() => processPitchMatchAI(record));
+                        const { pitchProductPrompt, pitchProductSummary } = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument));
+                        const { pitchCtaPrompt, pitchCtaSummary } = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatchSummary, pitchProductSummary));
 
                         return {
                             recordId: record.id,
-                            pitchMatch,
-                            pitchProduct,
-                            pitchCta
+
+                            pitchMatchSummary,
+                            pitchMatchPrompt,
+
+                            pitchProductSummary,
+                            pitchProductPrompt,
+
+                            pitchCtaSummary,
+                            pitchCtaPrompt
                         };
                     } catch (error) {
                         console.error(`❌ AI Error for Task ID ${record.id}:`, error);
                         return {
                             recordId: record.id,
-                            pitchMatch: "Failed to generate summary",
-                            pitchProduct: "Failed to generate summary",
-                            pitchCta: "Failed to generate summary"
+
+                            pitchMatchSummary: "Failed to generate summary",
+                            pitchMatchPrompt: null,
+
+                            pitchProductSummary: "Failed to generate summary",
+                            pitchProductPrompt: null,
+
+                            pitchCtaSummary: "Failed to generate summary",
+                            pitchCtaPrompt: null
+
                         };
                     }
                 }); // ✅ This must be awaited inside Promise.all()
             })
         );
 
-        console.log("✅ AI Workflow Completed:", JSON.stringify(aiResults, null, 2));
+        console.log("✅ AI Workflow Completed:");
         return NextResponse.json({ results: aiResults }, { status: 200 });
 
     } catch (error) {

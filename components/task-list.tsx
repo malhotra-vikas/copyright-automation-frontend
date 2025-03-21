@@ -463,16 +463,29 @@ async function fetchAndUpdatePitchMatch(airtableResult: any, documentReadText: a
     console.log("✅ AI Workflow Results:", data.results);
 
     // ✅ Step 4: Update the relevent Air Table Record with the AI Generated Pitch
-    const recordsToUpdate = data.results.map(record => ({
-        id: record.recordId, // Airtable Record ID
-        fields: {
-            "pitch-match": record.pitchMatch || "No summary available", // Ensure a fallback value
-            "pitch-product": record.pitchProduct || "No summary available", // Ensure a fallback value
-            "pitch-cta": record.pitchCta || "No summary available", // Ensure a fallback value
-            "status": "processed" // Optional: update the status to indicate AI processing is complete
-        }
-    }));
+    const recordsToUpdate = data.results.map(record => {
+        console.log("🔍 Full record:", JSON.stringify(record, null, 2));
 
+        const fields: any = {
+            status: "processed"
+        };
+    
+        if (record.pitchMatchSummary != null) fields["pitch-match"] = record.pitchMatchSummary;
+        if (record.pitchProductSummary != null) fields["pitch-product"] = record.pitchProductSummary;
+        if (record.pitchCtaSummary != null) fields["pitch-cta"] = record.pitchCtaSummary;
+    
+        if (record.pitchMatchPrompt != null) fields["pitch-match-prompt"] = record.pitchMatchPrompt;
+        if (record.pitchProductPrompt != null) fields["pitch-product-prompt"] = record.pitchProductPrompt;
+        if (record.pitchCtaPrompt != null) fields["pitch-cta-prompt"] = record.pitchCtaPrompt;
+    
+        return {
+            id: record.recordId,
+            fields
+        };
+    });
+
+    console.log("recordsToUpdate being set as ", recordsToUpdate)
+    
     const airtableUpdatedResponse = await fetch("/api/airtable", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
