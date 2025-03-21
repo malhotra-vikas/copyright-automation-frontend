@@ -427,6 +427,22 @@ export default function AIReview() {
                                     const result = await res.json();
                                     if (!res.ok) throw new Error(result.error || "Failed to save prompt");
 
+                                    // ✅ Update the local state to reflect the new prompt
+                                    setEmails((prevEmails) =>
+                                        prevEmails.map((email) =>
+                                            email.id === record.id
+                                                ? {
+                                                    ...email,
+                                                    fields: {
+                                                        ...email.fields,
+                                                        [`${editablePromptType}-prompt`]: editablePrompt,
+                                                    }
+                                                }
+                                                : email
+                                        )
+                                    );
+
+                                    
                                     toast.success("✅ Prompt saved successfully!");
                                     setVisiblePrompt(null);
                                 } catch (error) {

@@ -174,7 +174,6 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
 
                 let documentRead = await onboardingDocResponse.json();
                 let documentReadText = documentRead.text
-                console.log("✅ Docuemnt Read as :", documentReadText);
 
                 const body = { data: leads, client: clientName, clientSlack: clientSlack, onboardindDocument: clientOnboarding, clickupTask: task.id }
 

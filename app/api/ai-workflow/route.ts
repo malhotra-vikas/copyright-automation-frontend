@@ -387,7 +387,6 @@ export async function POST(req: Request) {
 
             let documentRead = await onboardingDocResponse.json();
             let documentReadText = documentRead.text
-            console.log("✅ Docuemnt Read as :", documentReadText);
 
 
             if (!latestRecord) {
