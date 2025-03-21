@@ -40,23 +40,38 @@ const getClientWebsiteFromTask = async (task: any): Promise<string> => {
 // ✅ Function to Process AI Tasks (Re-used for Single & Batch Processing)
 const processAIForRecord = async (record: any, clientOnboardingDocument: string) => {
     try {
-        const pitchMatch = await fetchWithRetry(() => processPitchMatchAI(record));
-        const pitchProduct = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument));
-        const pitchCta = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatch, pitchProduct));
+        const runWithSavedPrompt = true
+
+        const { pitchMatchPrompt, pitchMatchSummary } = await fetchWithRetry(() => processPitchMatchAI(record, runWithSavedPrompt));
+        const { pitchProductPrompt, pitchProductSummary } = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument, runWithSavedPrompt));
+        const { pitchCtaPrompt, pitchCtaSummary } = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatchSummary, pitchProductSummary, runWithSavedPrompt));
 
         return {
             recordId: record.id,
-            pitchMatch,
-            pitchProduct,
-            pitchCta
+
+            pitchMatchSummary,
+            pitchMatchPrompt,
+
+            pitchProductSummary,
+            pitchProductPrompt,
+
+            pitchCtaSummary,
+            pitchCtaPrompt
         };
+
     } catch (error) {
         console.error(`❌ AI Error for Task ID ${record.id}:`, error);
         return {
             recordId: record.id,
-            pitchMatch: "Failed to generate summary",
-            pitchProduct: "Failed to generate summary",
-            pitchCta: "Failed to generate summary"
+
+            pitchMatchSummary: "Failed to generate summary",
+            pitchMatchPrompt: null,
+
+            pitchProductSummary: "Failed to generate summary",
+            pitchProductPrompt: null,
+
+            pitchCtaSummary: "Failed to generate summary",
+            pitchCtaPrompt: null
         };
     }
 };
@@ -114,7 +129,7 @@ const fetchWebsiteSummary = async (websiteUrl: string): Promise<string> => {
 
 
 // ✅ Function to Process Pitch-Product AI
-async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchProduct: string): Promise<{ pitchCtaPrompt: string; pitchCtaSummary: string }> {
+async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchProduct: string, runWithSavedPrompt: boolean): Promise<{ pitchCtaPrompt: string; pitchCtaSummary: string }> {
     const recordData = airtableRecord.fields;
 
     //console.log("AI Processing airtable Record - ", recordData)
@@ -122,7 +137,13 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
     const pitchClientName = recordData["client id"]
     const pitchLeadWebsite = recordData["Website"]
 
-    const prompt = `Based on the customer's business and product: "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}", 
+    let prompt: string
+
+    if (runWithSavedPrompt && recordData["pitch-cta-prompt"]) {
+        prompt = recordData["pitch-cta-prompt"]
+    } else {
+
+        prompt = `Based on the customer's business and product: "${pitchMatch}" and how the client's solution can help described in "${pitchProduct}", 
                     draft a call to action of no more than 20 words for CLIENT "${pitchClientName}". 
 
                     The call to action must **explicitly invite collaboration**, such as scheduling a call, booking a demo, or meeting. 
@@ -132,7 +153,7 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
                     Keep the tone informative and neutral.
                     
                     **Response must be formatted as a single statement with no additional context.**`;
-
+    }
 
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -184,7 +205,7 @@ async function processPitchCTAAI(airtableRecord: any, pitchMatch: string, pitchP
 }
 
 // ✅ Function to Process Pitch-Product AI
-async function processPitchProductAI(airtableRecord: any, clientOnboardingDocument: string): Promise<{ pitchProductPrompt: string; pitchProductSummary: string }> {
+async function processPitchProductAI(airtableRecord: any, clientOnboardingDocument: string, runWithSavedPrompt: boolean): Promise<{ pitchProductPrompt: string; pitchProductSummary: string }> {
     const recordData = airtableRecord.fields;
 
     //console.log("AI Processing airtable Record - ", recordData)
@@ -194,16 +215,24 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
 
     const docContent = clientOnboardingDocument;
 
-    const prompt = `Using the following document content: "${docContent}", 
-                    draft a concise pitch (no more than 100 words) for CLIENT "${pitchClientName}".
-                    
-                    The pitch should explain how their product or service benefits businesses like "${pitchLeadWebsite}". 
-                    Use clear, professional, and factual language without superlatives, exaggerations, or marketing buzzwords. 
-                    Maintain an informative and neutral tone. 
+    let prompt: string
 
-                    Ensure the response is in natural language, includes relevant product examples, and is formatted as a single statement.
-                    The pitch MUST be in 1st Person as if "${pitchClientName}" is speaking it.
-                    Do not include any extra information beyond the pitch itself.`;
+    if (runWithSavedPrompt && recordData["pitch-product-prompt"]) {
+        prompt = recordData["pitch-product-prompt"]
+    } else {
+
+        prompt = `Using the following document content: "${docContent}", 
+            draft a concise pitch (no more than 100 words) for CLIENT "${pitchClientName}".
+            
+            The pitch should explain how their product or service benefits businesses like "${pitchLeadWebsite}". 
+            Use clear, professional, and factual language without superlatives, exaggerations, or marketing buzzwords. 
+            Maintain an informative and neutral tone. 
+
+            Ensure the response is in natural language, includes relevant product examples, and is formatted as a single statement.
+            The pitch MUST be in 1st Person as if "${pitchClientName}" is speaking it.
+            Do not include any extra information beyond the pitch itself.`;
+
+    }
 
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -256,19 +285,24 @@ async function processPitchProductAI(airtableRecord: any, clientOnboardingDocume
 
 
 // ✅ Function to Process Pitch-Match AI
-async function processPitchMatchAI(airtableRecord: any): Promise<{ pitchMatchPrompt: string; pitchMatchSummary: string }> {
+async function processPitchMatchAI(airtableRecord: any, runWithSavedPrompt: boolean): Promise<{ pitchMatchPrompt: string; pitchMatchSummary: string }> {
     const recordData = airtableRecord.fields;
 
     //console.log("AI Processing airtable Record - ", recordData)
     const pitchSite = recordData["Website"]
 
-    const prompt = `Analyze the "${pitchSite}" and draft a pitch of no more than 45 words. The pitch should read natural as if a human has written it. 
+    let prompt: string
+    if (runWithSavedPrompt && recordData["pitch-match-prompt"]) {
+        prompt = recordData["pitch-match-prompt"]
+    } else {
+
+        prompt = `Analyze the "${pitchSite}" and draft a pitch of no more than 45 words. The pitch should read natural as if a human has written it. 
                     The pitch must be like this or similar - I came across your website when searching for [X] and noticed you helping [Y] Group with [Z] solution.
                     Fill in relevant information in X, Y and Z placeholders. Include some relevant product examples.
                     Use clear, professional and factual language. Do not add superlatives, exaggerations or marketing buzzworkds. 
                     Keep the tone informative and neutral.
                     No Not add any formatting. No not include anything else apart from the draft pitch statement`;
-
+    }
     try {
         const response = await fetch("https://api.perplexity.ai/chat/completions", {
             method: "POST",
@@ -390,9 +424,11 @@ export async function POST(req: Request) {
                 return perplixityRateLimit(async () => { // ✅ Await this function properly
                     try {
 
-                        const { pitchMatchPrompt, pitchMatchSummary } = await fetchWithRetry(() => processPitchMatchAI(record));
-                        const { pitchProductPrompt, pitchProductSummary } = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument));
-                        const { pitchCtaPrompt, pitchCtaSummary } = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatchSummary, pitchProductSummary));
+                        const runWithSavedPrompt = false
+
+                        const { pitchMatchPrompt, pitchMatchSummary } = await fetchWithRetry(() => processPitchMatchAI(record, runWithSavedPrompt));
+                        const { pitchProductPrompt, pitchProductSummary } = await fetchWithRetry(() => processPitchProductAI(record, clientOnboardingDocument, runWithSavedPrompt));
+                        const { pitchCtaPrompt, pitchCtaSummary } = await fetchWithRetry(() => processPitchCTAAI(record, pitchMatchSummary, pitchProductSummary, runWithSavedPrompt));
 
                         return {
                             recordId: record.id,

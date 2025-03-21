@@ -24,6 +24,9 @@ interface AirtableRecord {
         "pitch-match": string;
         "pitch-product": string;
         "pitch-cta": string;
+        "pitch-match-prompt": string;
+        "pitch-product-prompt": string;
+        "pitch-cta-prompt": string;
         "client-google-drive": string;
     };
 }
@@ -35,7 +38,10 @@ export default function AIReview() {
     const [emails, setEmails] = useState<AirtableRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentIndex, setCurrentIndex] = useState(0);
-
+    const [visiblePrompt, setVisiblePrompt] = useState<string | null>(null);
+    const [editablePrompt, setEditablePrompt] = useState<string>("");
+    const [editablePromptType, setEditablePromptType] = useState<"pitch-match" | "pitch-product" | "pitch-cta" | "">("");
+    
     useEffect(() => {
         if (!taskId) return;
 
@@ -165,7 +171,7 @@ export default function AIReview() {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    recordId: record.id // Use latest record ID
+                    recordId: record.id, // Use latest record ID
                 }),
             });
 
@@ -178,7 +184,7 @@ export default function AIReview() {
             console.log("✅ AI Re-run Successful:", data);
 
             // ✅  Update the relevent Air Table Record with the AI Generated Pitch
-            const updated = await updateAirtableRecord(record.id, data.result.pitchMatch, data.result.pitchProduct, data.result.pitchCta);
+            const updated = await updateAirtableRecord(record.id, data.result.pitchMatchSummary, data.result.pitchProductSummary, data.result.pitchCtaSummary);
 
             if (updated) {
                 console.log("✅ Airtable record successfully updated.");
@@ -196,9 +202,9 @@ export default function AIReview() {
                             ...email,
                             fields: {
                                 ...email.fields,
-                                "pitch-match": data.result.pitchMatch,
-                                "pitch-product": data.result.pitchProduct,
-                                "pitch-cta": data.result.pitchCta
+                                "pitch-match": data.result.pitchMatchSummary,
+                                "pitch-product": data.result.pitchProductSummary,
+                                "pitch-cta": data.result.pitchCtaSummary
                             }
                         }
                         : email
@@ -232,21 +238,53 @@ export default function AIReview() {
                     <CardContent className="flex flex-col justify-between h-full">
                         <div className="flex-grow">
                             <p><strong>Hey {record.fields["First Name"]},</strong></p>
-                            <p className="bg-green-100 px-2 py-1 inline-block rounded text-green-900">
+                            <p
+                                className="bg-green-100 px-2 py-1 inline-block rounded text-green-900 cursor-pointer"
+
+                                onClick={() => {
+                                    const type = "pitch-match";
+                                    setVisiblePrompt(record.fields[`${type}-prompt`] || "No prompt available");
+                                    setEditablePrompt(record.fields[`${type}-prompt`] || "");
+                                    setEditablePromptType(type);
+                                }}
+                                                            
+                                title="Click to view prompt"
+                            >
                                 {record.fields["pitch-match"] || "No pitch-match available"}
                             </p>
+
                             <p className="mt-2">
                                 This intrigued me, so i researched your company ({record.fields["Company name"]}) a little more and came across your profile.
                             </p>
                             <p className="mt-2">
                                 Given you are the {record.fields["Title"]} of the company, i figured it would make sense to reach out.
                             </p>
-                            <p className="bg-green-100 mt-2">
+                            <p
+                                className="bg-green-100 mt-2 cursor-pointer px-2 py-1 inline-block rounded text-green-900"
+                                onClick={() => {
+                                    const type = "pitch-product";
+                                    setVisiblePrompt(record.fields[`${type}-prompt`] || "No prompt available");
+                                    setEditablePrompt(record.fields[`${type}-prompt`] || "");
+                                    setEditablePromptType(type);
+                                }}                                
+                                title="Click to view prompt"
+                            >
                                 {record.fields["pitch-product"] || "No pitch-product available"}
                             </p>
-                            <p className="bg-green-100 mt-2">
+
+                            <p
+                                className="bg-green-100 mt-2 cursor-pointer px-2 py-1 inline-block rounded text-green-900"
+                                onClick={() => {
+                                    const type = "pitch-cta";
+                                    setVisiblePrompt(record.fields[`${type}-prompt`] || "No prompt available");
+                                    setEditablePrompt(record.fields[`${type}-prompt`] || "");
+                                    setEditablePromptType(type);
+                                }}                                
+                                title="Click to view prompt"
+                            >
                                 {record.fields["pitch-cta"] || "No pitch-cta available"}
                             </p>
+
 
                             <p className="mt-4">Best,</p>
                             <p>TBD</p>
@@ -344,6 +382,65 @@ export default function AIReview() {
                 </Button>
 
             </div>
+            {visiblePrompt !== null && (
+                <div className="fixed bottom-6 left-6 right-6 max-w-3xl mx-auto bg-white shadow-xl border border-gray-300 p-4 rounded z-50">
+                    <div className="flex justify-between items-start mb-2">
+                        <h2 className="font-semibold text-sm text-gray-700">Edit Prompt</h2>
+                        <button
+                            onClick={() => setVisiblePrompt(null)}
+                            className="ml-4 text-gray-500 hover:text-black font-semibold"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                    <textarea
+                        className="w-full border p-2 rounded text-sm text-gray-700 mb-3"
+                        rows={6}
+                        value={editablePrompt}
+                        onChange={(e) => setEditablePrompt(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setVisiblePrompt(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={async () => {
+                                try {
+                                    const res = await fetch("/api/airtable", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                            airtableRecords: [{
+                                                id: record.id,
+                                                fields: {
+                                                    [`${editablePromptType}-prompt`]: editablePrompt,
+                                                }
+                                            }]
+                                        })
+                                    });
+                                    const result = await res.json();
+                                    if (!res.ok) throw new Error(result.error || "Failed to save prompt");
+
+                                    toast.success("✅ Prompt saved successfully!");
+                                    setVisiblePrompt(null);
+                                } catch (error) {
+                                    toast.error("❌ Failed to save prompt");
+                                    console.error(error);
+                                }
+                            }}
+                        >
+                            Save
+                        </Button>
+                    </div>
+                </div>
+            )}
+
 
         </div>
     );
