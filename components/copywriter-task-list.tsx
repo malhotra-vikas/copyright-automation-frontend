@@ -21,18 +21,62 @@ export default function CopywriterTaskList() {
     const [taskIndex, setTaskIndex] = useState(0);
     const [emailIndex, setEmailIndex] = useState(0);
 
+    const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
+    const [currentEmailIndex, setCurrentEmailIndex] = useState(0);
+
+
     // Group emails by ClickUp Task ID
-    const taskMap = records.reduce((acc, record) => {
+    const recordsByTask: Record<string, AirtableRecord[]> = records.reduce((acc, record) => {
         const taskId = record.fields["clickup task id"];
         if (!acc[taskId]) acc[taskId] = [];
         acc[taskId].push(record);
         return acc;
     }, {} as Record<string, AirtableRecord[]>);
 
-    const uniqueTaskIds = Object.keys(taskMap);
-    const currentTaskId = uniqueTaskIds[taskIndex];
-    const currentEmails = taskMap[currentTaskId] || [];
-    const currentRecord = currentEmails[emailIndex];
+    const taskIds = Object.keys(recordsByTask);
+    const currentTaskId = taskIds[currentTaskIndex];
+    const currentTaskRecords = recordsByTask[currentTaskId] || [];
+    const currentRecord = currentTaskRecords[currentEmailIndex];
+
+    // Navigation helpers
+    const totalTasks = taskIds.length;
+    const totalEmailsInCurrentTask = currentTaskRecords.length;
+
+    const sendSlackMessage = async () => {
+        // Define the message data to send to Slack
+        const messageData = {
+            text: 'Hello from my Next.js app!',
+            attachments: [
+                {
+                    fallback: 'This is a fallback text',
+                    text: 'Here is an attachment with more details.',
+                    color: '#36a64f',
+                },
+            ],
+        };
+
+        try {
+            // Call the backend API route to send the message to Slack
+            const response = await fetch('/api/slack', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(messageData),
+            });
+
+            if (response.ok) {
+                // Show success toast when message is sent successfully
+                toast.success('✅ Approved and Sent!');
+            } else {
+                throw new Error('Failed to send message');
+            }
+        } catch (error) {
+            console.error('Error sending message to Slack:', error);
+            toast.error('❌ Error sending message');
+        }
+    };
+
 
     useEffect(() => {
         const fetchAllRecords = async () => {
@@ -152,35 +196,61 @@ export default function CopywriterTaskList() {
                 {/* Task Pagination */}
                 <div className="space-x-2">
                     <Button
-                        size="sm"
                         variant="outline"
+                        disabled={currentTaskIndex === 0}
                         onClick={() => {
-                            setTaskIndex(i => Math.max(i - 1, 0));
-                            setEmailIndex(0);
+                            setCurrentTaskIndex((i) => i - 1);
+                            setCurrentEmailIndex(0); // reset to first email of new task
                         }}
-                        disabled={taskIndex === 0}
                     >
-                        ← Previous Task
+                        ⬅ Prev Task ({currentTaskIndex + 1}/{taskIds.length})
                     </Button>
+
                     <Button
-                        size="sm"
                         variant="outline"
+                        disabled={currentTaskIndex === taskIds.length - 1}
                         onClick={() => {
-                            setTaskIndex(i => Math.min(i + 1, uniqueTaskIds.length - 1));
-                            setEmailIndex(0);
+                            setCurrentTaskIndex((i) => i + 1);
+                            setCurrentEmailIndex(0); // reset to first email of new task
                         }}
-                        disabled={taskIndex === uniqueTaskIds.length - 1}
                     >
-                        Next Task →
+                        Next Task ➡ ({currentTaskIndex + 2}/{taskIds.length})
                     </Button>
                 </div>
 
                 {/* CTA Buttons */}
                 <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => toast.success("✅ Approved!")}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={sendSlackMessage}
+                    >
                         <CheckCircle className="h-4 w-4 text-green-500" /> Approve and Send
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => toast.info("🔎 Review manually!")}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                            try {
+                                const response = await fetch("/api/clickup", {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        taskId: currentRecord.fields["clickup task id"], // Updated here to use currentRecord
+                                        status: "REVIEW MANUALLY",
+                                    }),
+                                });
+
+                                const data = await response.json();
+                                if (!response.ok) throw new Error(data.error || "Failed to update task");
+
+                                toast.success("✅ Marked as Review Manually");
+                            } catch (err) {
+                                console.error(err);
+                                toast.error("❌ Failed to mark task");
+                            }
+                        }}
+                    >
                         <FileText className="h-4 w-4 text-yellow-500" /> Review Manually
                     </Button>
                     <Button
@@ -209,15 +279,15 @@ export default function CopywriterTaskList() {
                         onClick={() => setEmailIndex(i => Math.max(i - 1, 0))}
                         disabled={emailIndex === 0}
                     >
-                        ← Prev Email
+                        ← Prev Email ({emailIndex + 1}/{totalEmailsInCurrentTask})
                     </Button>
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEmailIndex(i => Math.min(i + 1, currentEmails.length - 1))}
-                        disabled={emailIndex === currentEmails.length - 1}
+                        onClick={() => setEmailIndex(i => Math.min(i + 1, totalEmailsInCurrentTask - 1))}
+                        disabled={emailIndex === totalEmailsInCurrentTask - 1}
                     >
-                        Next Email →
+                        Next Email → ({emailIndex + 1}/{totalEmailsInCurrentTask})
                     </Button>
                 </div>
             </div>
