@@ -25,18 +25,20 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <div className="min-h-screen flex flex-col">
-          {isLoggedIn && (
-            <header className="border-b">
-              <div className="container mx-auto py-4 px-4 flex justify-between items-center">
-                <h1 className="font-semibold">Your Copyrighting Tasks (Pre-Processed by AI)</h1>
-                <LogoutButton />
-              </div>
-            </header>
-          )}
+
           <main className="flex-1">{children}</main>
+          {isLoggedIn && (
+
+            <div className="container mx-auto py-4 px-4 flex justify-between items-center">
+              <h1 className="font-semibold">Your Copyrighting Tasks (Pre-Processed by AI)</h1>
+              <LogoutButton />
+            </div>
+          )}
+
         </div>
+
         {/* ✅ Add ToastContainer here */}
-        <ToastContainer />        
+        <ToastContainer />
       </body>
     </html>
   )
