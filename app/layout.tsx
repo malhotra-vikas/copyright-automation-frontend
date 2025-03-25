@@ -30,7 +30,7 @@ export default function RootLayout({
           {isLoggedIn && (
 
             <div className="container mx-auto py-4 px-4 flex justify-between items-center">
-              <h1 className="font-semibold">Your Copyrighting Tasks (Pre-Processed by AI)</h1>
+              <h1 className="font-semibold">Ready for CW Review</h1>
               <LogoutButton />
             </div>
           )}

@@ -110,7 +110,7 @@ export async function runAIWorkflowOnTask(task: ClickUpTask) {
         let response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/clickup`, {
             method: "PUT",
             headers: {
-                Authorization: `${process.env.CLICKUP_WORKSPACE_TOKEN_FOR_WEBHOOKS}`, 
+                Authorization: `${process.env.CLICKUP_WORKSPACE_TOKEN_FOR_WEBHOOKS}`,
                 Accept: "application/json",
             },
             body: JSON.stringify({ taskId: task.id, status: "AI PROCESSING" }),
@@ -200,6 +200,20 @@ export async function runAIWorkflowOnTask(task: ClickUpTask) {
         // ✅ Step 3: Trigger AI Workflow for each Airtable record. 
         // For each wibsite form the AI Built Pitch-Match
         await fetchAndUpdatePitchMatch(airtableResult, documentReadText);
+
+        // ✅ Step 4: Set Click Up task status to READY FOR CW REVIEW
+        response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/clickup`, {
+            method: "PUT",
+            headers: {
+                Authorization: `${process.env.CLICKUP_WORKSPACE_TOKEN_FOR_WEBHOOKS}`,
+                Accept: "application/json",
+            },
+            body: JSON.stringify({ taskId: task.id, status: "READY FOR CW REVIEW" }),
+        });
+
+        if (!response.ok) {
+            console.error(`Failed to update tasks status for : ${task.id} with status: READY FOR CW REVIEW`)
+        }
 
 
         console.log("🎉 AI workflow completed!")

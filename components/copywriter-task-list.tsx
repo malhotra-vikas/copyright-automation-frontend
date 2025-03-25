@@ -24,7 +24,6 @@ export default function CopywriterTaskList() {
     const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
     const [currentEmailIndex, setCurrentEmailIndex] = useState(0);
 
-
     // Group emails by ClickUp Task ID
     const recordsByTask: Record<string, AirtableRecord[]> = records.reduce((acc, record) => {
         const taskId = record.fields["clickup task id"];
@@ -36,7 +35,7 @@ export default function CopywriterTaskList() {
     const taskIds = Object.keys(recordsByTask);
     const currentTaskId = taskIds[currentTaskIndex];
     const currentTaskRecords = recordsByTask[currentTaskId] || [];
-    const currentRecord = currentTaskRecords[currentEmailIndex];
+    const currentRecord = currentTaskRecords[emailIndex];
 
     // Navigation helpers
     const totalTasks = taskIds.length;
@@ -236,7 +235,7 @@ export default function CopywriterTaskList() {
                                     method: "PUT",
                                     headers: { "Content-Type": "application/json" },
                                     body: JSON.stringify({
-                                        taskId: currentRecord.fields["clickup task id"], // Updated here to use currentRecord
+                                        taskId: currentRecord.fields["clickup task id"],
                                         status: "REVIEW MANUALLY",
                                     }),
                                 });
