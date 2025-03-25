@@ -11,12 +11,11 @@ export default async function Dashboard() {
     redirect("/")
   }
 
-  const tasks = await getClickUpTasks(clickupToken.value)
+  //const tasks = await getClickUpTasks(clickupToken.value)
 
   return (
     <div className="container mx-auto py-8">
-      <CopywriterTaskList initialTasks={tasks} /> {/* ✅ Pass initial tasks */}
-
+      <CopywriterTaskList /> {/* ✅ Pass initial tasks */}
     </div>
   )
 }

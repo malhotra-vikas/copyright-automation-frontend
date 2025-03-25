@@ -14,6 +14,8 @@ interface AirtableRecord {
 export default function CopywriterTaskList() {
     const [records, setRecords] = useState<AirtableRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [clickupTask, setClickupTask] = useState(null);
+
     const [visiblePrompt, setVisiblePrompt] = useState<string | null>(null);
     const [editablePrompt, setEditablePrompt] = useState<string>("");
     const [editablePromptType, setEditablePromptType] = useState<"pitch-match" | "pitch-product" | "pitch-cta" | "">("");
@@ -23,7 +25,7 @@ export default function CopywriterTaskList() {
 
     const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
     const [currentEmailIndex, setCurrentEmailIndex] = useState(0);
-
+    
     // Group emails by ClickUp Task ID
     const recordsByTask: Record<string, AirtableRecord[]> = records.reduce((acc, record) => {
         const taskId = record.fields["clickup task id"];
@@ -41,15 +43,56 @@ export default function CopywriterTaskList() {
     const totalTasks = taskIds.length;
     const totalEmailsInCurrentTask = currentTaskRecords.length;
 
-    const sendSlackMessage = async () => {
+    const approveAndSend = async () => {
+
+        // Build the URL with the taskId query parameter
+        const url = `/api/clickup?taskId=${currentRecord.fields['clickup task id']}`;
+
+        // Fetch the task details from the backend API
+        const res = await fetch(url);
+
+        if (!res.ok) {
+            throw new Error("Failed to fetch task");
+        }
+
+        const data = await res.json();
+
+        const campaignName = data.name
+
+        // Define the document URL from the public folder
+        const clientName = data.custom_fields.find((field: any) => field.name === "CLIENT-NAME")?.value || "default-client"; // Adjust based on how client names are stored
+        // Format the client name to be lowercase and replace spaces with hyphens
+        const formattedClientName = clientName.toLowerCase().replace(/\s+/g, '-');
+
+        console.log("Client name is:", formattedClientName);
+
+        // Construct the absolute URL for the document
+        const documentUrl = `${window.location.origin}/uploads/${formattedClientName}/campaign-document.pdf`;
+
+        console.log("documentUrl is ", documentUrl)
+
         // Define the message data to send to Slack
         const messageData = {
-            text: 'Hello from my Next.js app!',
+            text: `Campaign : ${campaignName} is ready for review`,
             attachments: [
                 {
                     fallback: 'This is a fallback text',
-                    text: 'Here is an attachment with more details.',
+                    text: 'Here is a sample emails for the campaign.',
                     color: '#36a64f',
+                    fields: [
+                        {
+                            title: "Campaign Document",
+                            value: "Click the link below to view the campaign documentm with sample emails that we will send.",
+                            short: false,
+                        },
+                    ],
+                    actions: [
+                        {
+                            type: "button",
+                            text: "View Document",
+                            url: documentUrl
+                        },
+                    ],
                 },
             ],
         };
@@ -65,14 +108,70 @@ export default function CopywriterTaskList() {
             });
 
             if (response.ok) {
-                // Show success toast when message is sent successfully
-                toast.success('✅ Approved and Sent!');
+                // Change the task status to "Client REVIEW"
+                const updateStatusResponse = await fetch('/api/clickup', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        taskId: currentRecord.fields['clickup task id'],
+                        status: 'CLIENT REVIEW',
+                    }),
+                });
+
+                if (!updateStatusResponse.ok) {
+                    throw new Error('Failed to update task status to Client REVIEW');
+                }
+
+                // Move to the next task if available
+                if (currentTaskIndex < taskIds.length - 1) {
+                    // Set the next task as the current task and reset email index to 0
+                    setCurrentTaskIndex(i => i + 1);
+                    setCurrentEmailIndex(0);
+                } else {
+                    <div className="p-6 text-center">No records found.</div>;
+                    // No tasks remaining, show "All done for the day"
+                    toast.info('🎉 All done for the day!');
+                }
             } else {
                 throw new Error('Failed to send message');
             }
         } catch (error) {
             console.error('Error sending message to Slack:', error);
             toast.error('❌ Error sending message');
+        }
+    };
+
+    const reviewManually = async () => {
+
+        try {
+            // Change the task status to "Client REVIEW"
+            const updateStatusResponse = await fetch('/api/clickup', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    taskId: currentRecord.fields['clickup task id'],
+                    status: 'REVIEW MANUALLY',
+                }),
+            });
+
+            if (!updateStatusResponse.ok) {
+                throw new Error('Failed to update task status to REVIEW MANUALLY');
+            }
+
+            // Move to the next task if available
+            if (currentTaskIndex < taskIds.length - 1) {
+                // Set the next task as the current task and reset email index to 0
+                setCurrentTaskIndex(i => i + 1);
+                setCurrentEmailIndex(0);
+            } else {
+                <div className="p-6 text-center">No records found.</div>;
+                // No tasks remaining, show "All done for the day"
+                toast.info('🎉 All done for the day!');
+            }
+
+        } catch (error) {
+            console.error('Error settig to review manually:', error);
+            toast.error('❌ Error settig to review manually:');
         }
     };
 
@@ -138,8 +237,39 @@ export default function CopywriterTaskList() {
         }
     };
 
+    useEffect(() => {
+        const fetchTaskData = async () => {
+            if (!currentRecord) {
+                return;
+            }
+
+            const url = `/api/clickup?taskId=${currentRecord.fields['clickup task id']}`;
+
+            try {
+                // Fetch the task details from the backend API
+                const res = await fetch(url);
+
+                if (!res.ok) {
+                    throw new Error("Failed to fetch task");
+                }
+
+                const data = await res.json(); // Parse the JSON response
+
+                console.log("Response is ", data); // Log the fetched task data
+                setClickupTask(data); // Set the task data to state
+            } catch (error) {
+                console.error("Error fetching task:", error);
+            } finally {
+                setLoading(false); // Set loading to false after the request is complete
+            }
+        };
+
+        fetchTaskData(); // Call the async function to fetch data
+    }, [currentRecord]); // Dependency array to run the effect when currentRecord changes
+
     if (loading) return <div className="p-6 text-center">Loading emails...</div>;
     if (!currentRecord) return <div className="p-6 text-center">No records found.</div>;
+
 
     return (
         <div className="w-full max-w-[1440px] mx-auto py-10 flex flex-col gap-6 h-screen">
@@ -222,33 +352,14 @@ export default function CopywriterTaskList() {
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={sendSlackMessage}
+                        onClick={approveAndSend}
                     >
                         <CheckCircle className="h-4 w-4 text-green-500" /> Approve and Send
                     </Button>
                     <Button
                         size="sm"
                         variant="outline"
-                        onClick={async () => {
-                            try {
-                                const response = await fetch("/api/clickup", {
-                                    method: "PUT",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        taskId: currentRecord.fields["clickup task id"],
-                                        status: "REVIEW MANUALLY",
-                                    }),
-                                });
-
-                                const data = await response.json();
-                                if (!response.ok) throw new Error(data.error || "Failed to update task");
-
-                                toast.success("✅ Marked as Review Manually");
-                            } catch (err) {
-                                console.error(err);
-                                toast.error("❌ Failed to mark task");
-                            }
-                        }}
+                        onClick={reviewManually}
                     >
                         <FileText className="h-4 w-4 text-yellow-500" /> Review Manually
                     </Button>
@@ -278,7 +389,11 @@ export default function CopywriterTaskList() {
                         onClick={() => setEmailIndex(i => Math.max(i - 1, 0))}
                         disabled={emailIndex === 0}
                     >
+
+                        {/* 
                         ← Prev Email ({emailIndex + 1}/{totalEmailsInCurrentTask})
+            */}
+                        ← Prev Email
                     </Button>
                     <Button
                         size="sm"
@@ -286,7 +401,10 @@ export default function CopywriterTaskList() {
                         onClick={() => setEmailIndex(i => Math.min(i + 1, totalEmailsInCurrentTask - 1))}
                         disabled={emailIndex === totalEmailsInCurrentTask - 1}
                     >
+                        {/* 
                         Next Email → ({emailIndex + 1}/{totalEmailsInCurrentTask})
+            */}
+                        Next Email →
                     </Button>
                 </div>
             </div>
