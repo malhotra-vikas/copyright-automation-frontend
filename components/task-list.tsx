@@ -164,7 +164,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                     leads = Object.values(leads); // Convert object to array if needed
                 }
 
-                console.log("✅ Google Sheet Data Read as :", leads);
+                //console.log("✅ Google Sheet Data Read as :", leads);
 
                 const onboardingDocResponse = await fetch("/api/read-onboarding-doc", {
                     method: "POST",
@@ -178,7 +178,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                 const body = { data: leads, client: clientName, clientSlack: clientSlack, onboardindDocument: clientOnboarding, clickupTask: task.id }
 
                 // ✅ Step 2: Sending data to Airtable
-                console.log("📡 Sending data to Airtable...", body);
+                console.log("📡 Sending data to Airtable...");
 
                 const airtableResponse = await fetch(`/api/airtable`, {
                     method: "POST",
@@ -192,7 +192,7 @@ export default function TaskList({ initialTasks }: { initialTasks: ClickUpTask[]
                     throw new Error(airtableResult.error || "Failed to store data in Airtable");
                 }
 
-                console.log("✅ Successfully stored data in Airtable:", airtableResult.storedRecords);
+                console.log("✅ Successfully stored data in Airtable:");
 
                 // ✅ Step 3: Trigger AI Workflow for each Airtable record. 
                 // For each wibsite form the AI Built Pitch-Match
@@ -483,7 +483,7 @@ async function fetchAndUpdatePitchMatch(airtableResult: any, documentReadText: a
         };
     });
 
-    console.log("recordsToUpdate being set as ", recordsToUpdate)
+    //console.log("recordsToUpdate being set as ", recordsToUpdate)
     
     const airtableUpdatedResponse = await fetch("/api/airtable", {
         method: "PATCH",

@@ -28,7 +28,7 @@ export default function RootLayout({
           {isLoggedIn && (
             <header className="border-b">
               <div className="container mx-auto py-4 px-4 flex justify-between items-center">
-                <h1 className="font-semibold">Your Copyrighting Tasks (Ready for AI)</h1>
+                <h1 className="font-semibold">Your Copyrighting Tasks (Pre-Processed by AI)</h1>
                 <LogoutButton />
               </div>
             </header>

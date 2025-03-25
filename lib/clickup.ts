@@ -18,6 +18,42 @@ export interface ClickUpTask {
 
 }
 
+export async function getClickUpTaskById(taskId: string, token: string): Promise<ClickUpTask> {
+
+
+    console.log("In getClickUpTaskById - taskId - ", taskId)
+    console.log("In getClickUpTaskById - token - ", taskId)
+
+    const response = await fetch(`https://api.clickup.com/api/v2/task/${taskId}`, {
+        headers: {
+            Authorization: token,
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ClickUp task ${taskId}`);
+    }
+
+    const task = await response.json();
+
+    return {
+        id: task.id,
+        name: task.name,
+        description: task.description || "",
+        status: {
+            status: task.status.status,
+        },
+        date_created: new Date(Number(task.date_created)).toISOString(),
+        url: task.url,
+        custom_fields: task.custom_fields?.map((field: any) => ({
+            id: field.id,
+            name: field.name,
+            type: field.type,
+            value: field.value ?? null,
+        })) || [],
+    };
+}
+
 export async function updateClickUpTaskStatus(taskId: string, newStatus: string, clickupToken: string) {
     const url = `https://api.clickup.com/api/v2/task/${taskId}`;
 
