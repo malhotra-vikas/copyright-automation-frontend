@@ -159,6 +159,92 @@ export default function CopywriterTaskList() {
                 <Button variant="outline" disabled={currentIndex === records.length - 1} onClick={() => setCurrentIndex(i => i + 1)}>Next</Button>
             </div>
 
+            {/* Action Buttons */}
+            <div className="flex justify-evenly items-center mt-6">
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-1"
+                    onClick={() => {
+                        toast.success("✅ Approved and Sent!");
+                        // TODO: Implement approve and send logic
+                    }}
+                >
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Approve and Send
+                </Button>
+
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-1"
+                    onClick={async () => {
+                        try {
+                            const response = await fetch("/api/clickup", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    taskId: record.fields["clickup task id"],
+                                    status: "REVIEW MANUALLY",
+                                }),
+                            });
+
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.error || "Failed to update task");
+
+                            toast.success("✅ Marked as Review Manually");
+                        } catch (err) {
+                            console.error(err);
+                            toast.error("❌ Failed to mark task");
+                        }
+                    }}
+                >
+                    <FileText className="h-4 w-4 text-yellow-500" />
+                    Review Manually
+                </Button>
+
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-1"
+                    onClick={async () => {
+                        try {
+                            const res = await fetch("/api/ai-workflow", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    recordId: record.id,
+                                    runWithSavedPrompt: true
+                                }),
+                            });
+
+                            const data = await res.json();
+                            if (!res.ok || !data.result) throw new Error(data.error || "Failed to re-run AI");
+
+                            toast.success("✅ AI re-run successful");
+
+                            setRecords(prev =>
+                                prev.map(r => r.id === record.id ? {
+                                    ...r,
+                                    fields: {
+                                        ...r.fields,
+                                        "pitch-match": data.result.pitchMatch,
+                                        "pitch-product": data.result.pitchProduct,
+                                        "pitch-cta": data.result.pitchCta,
+                                    }
+                                } : r)
+                            );
+                        } catch (err) {
+                            console.error(err);
+                            toast.error("❌ Failed to re-run AI");
+                        }
+                    }}
+                >
+                    <RefreshCw className="h-4 w-4 text-blue-500" />
+                    Re-run AI
+                </Button>
+            </div>
+
             {/* Prompt Modal */}
             {visiblePrompt !== null && (
                 <div className="fixed bottom-6 left-6 right-6 max-w-3xl mx-auto bg-white shadow-xl border border-gray-300 p-4 rounded z-50">
